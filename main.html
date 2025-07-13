@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ping Pong 4 Jugadores - MVP</title>
+  <style>
+    body { margin: 0; overflow: hidden; background: #000; }
+    canvas { display: block; margin: auto; background: #111; }
+  </style>
+</head>
+<body>
+<canvas id="gameCanvas"></canvas>
+
+<script>
+  const canvas = document.getElementById('gameCanvas');
+  const ctx = canvas.getContext('2d');
+
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+
+  const cornerLength = 80; // igual que el largo de las esquinas
+  const paddleWidth = 100;
+  const paddleHeight = 20;
+  const speed = 8;
+
+  const cornerWallLong = 120; // largo de la pared de esquina
+const cornerWallShort = 30; // ancho de la pared de esquina
+
+const paddles = [
+  // Arriba (rojo)
+  {
+    x: cornerWallLong,
+    y: 10,
+    w: paddleWidth,
+    h: paddleHeight,
+    color: 'red',
+    keys: ['ArrowLeft', 'ArrowRight'],
+    dx: 0,
+    min: cornerWallLong,
+    max: canvas.width - cornerWallLong - paddleWidth
+  },
+  // Izquierda (azul)
+  {
+    x: canvas.width - 10 - paddleHeight,
+    y: cornerWallLong,
+    w: paddleHeight,
+    h: paddleWidth,
+    color: 'blue',
+    keys: ['KeyW', 'KeyS'],
+    dx: 0,
+    min: cornerWallLong,
+    max: canvas.height - cornerWallLong - paddleWidth
+  },
+  // Abajo (amarillo)
+  {
+    x: cornerWallLong,
+    y: canvas.height - 30,
+    w: paddleWidth,
+    h: paddleHeight,
+    color: 'yellow',
+    keys: ['KeyA', 'KeyD'],
+    dx: 0,
+    min: cornerWallLong,
+    max: canvas.width - cornerWallLong - paddleWidth
+  },
+  // Derecha (verde)
+  {
+    x: 10,
+    y: cornerWallLong,
+    w: paddleHeight,
+    h: paddleWidth,
+    color: 'green',
+    keys: ['KeyJ', 'KeyL'],
+    dx: 0,
+    min: cornerWallLong,
+    max: canvas.height - cornerWallLong - paddleWidth
+  }
+];
+
+  const cornerWalls = [
+    { x: 0, y: 0, w: 120, h: 30 },
+    { x: 0, y: 0, w: 30, h: 120 },
+    { x: canvas.width - 120, y: 0, w: 120, h: 30 },
+    { x: canvas.width - 30, y: 0, w: 30, h: 120 },
+    { x: 0, y: canvas.height - 30, w: 120, h: 30 },
+    { x: 0, y: canvas.height - 120, w: 30, h: 120 },
+    { x: canvas.width - 120, y: canvas.height - 30, w: 120, h: 30 },
+    { x: canvas.width - 30, y: canvas.height - 120, w: 30, h: 120 }
+  ];
+
+  function getRandomCornerPosition() {
+    const offset = 60;
+    const positions = [
+      { x: offset, y: offset },
+      { x: canvas.width - offset, y: offset },
+      { x: offset, y: canvas.height - offset },
+      { x: canvas.width - offset, y: canvas.height - offset }
+    ];
+    return positions[Math.floor(Math.random() * positions.length)];
+  }
+
+  const startPos = getRandomCornerPosition();
+  const ball = {
+    x: startPos.x,
+    y: startPos.y,
+    r: 10,
+    dx: Math.random() < 0.5 ? 5 : -5,
+    dy: Math.random() < 0.5 ? 5 : -5,
+    color: 'white'
+  };
+
+  const keysPressed = {};
+  window.addEventListener('keydown', (e) => keysPressed[e.code] = true);
+  window.addEventListener('keyup', (e) => keysPressed[e.code] = false);
+
+  function movePaddles() {
+    paddles.forEach((p, i) => {
+      if (keysPressed[p.keys[0]]) p.dx = -speed;
+      else if (keysPressed[p.keys[1]]) p.dx = speed;
+      else p.dx = 0;
+
+      if (p.w > p.h) {
+        // Horizontal (arriba y abajo)
+        p.x += p.dx;
+        p.x = Math.max(p.min, Math.min(p.max, p.x));
+      } else {
+        // Vertical (izquierda y derecha)
+        p.y += p.dx;
+        p.y = Math.max(p.min, Math.min(p.max, p.y));
+      }
+    });
+  }
+
+  function drawPaddles() {
+    paddles.forEach(p => {
+      ctx.fillStyle = p.color;
+      ctx.fillRect(p.x, p.y, p.w, p.h);
+    });
+  }
+
+  function drawWalls() {
+    ctx.fillStyle = '#555';
+    cornerWalls.forEach(w => ctx.fillRect(w.x, w.y, w.w, w.h));
+  }
+
+  function drawBall() {
+    ctx.beginPath();
+    ctx.arc(ball.x, ball.y, ball.r, 0, Math.PI * 2);
+    ctx.fillStyle = ball.color;
+    ctx.fill();
+    ctx.closePath();
+  }
+
+  function updateBall() {
+    ball.x += ball.dx;
+    ball.y += ball.dy;
+
+    // Rebote en paredes esquinas
+    cornerWalls.forEach(w => {
+      if (
+        ball.x + ball.r > w.x &&
+        ball.x - ball.r < w.x + w.w &&
+        ball.y + ball.r > w.y &&
+        ball.y - ball.r < w.y + w.h
+      ) {
+        // Calcula la profundidad de la colisión en x e y
+        const overlapX = Math.min(ball.x + ball.r - w.x, w.x + w.w - (ball.x - ball.r));
+        const overlapY = Math.min(ball.y + ball.r - w.y, w.y + w.h - (ball.y - ball.r));
+        // Rebota en el eje de mayor penetración
+        if (overlapX < overlapY) {
+          ball.dx *= -1;
+          // Reposiciona fuera de la pared
+          if (ball.x < w.x) ball.x = w.x - ball.r;
+          else ball.x = w.x + w.w + ball.r;
+        } else {
+          ball.dy *= -1;
+          if (ball.y < w.y) ball.y = w.y - ball.r;
+          else ball.y = w.y + w.h + ball.r;
+        }
+      }
+    });
+
+    // Colisión con paletas
+    paddles.forEach(p => {
+      if (
+        ball.x + ball.r > p.x &&
+        ball.x - ball.r < p.x + p.w &&
+        ball.y + ball.r > p.y &&
+        ball.y - ball.r < p.y + p.h
+      ) {
+        if (p.w > p.h) {
+          ball.dy *= -1;
+          ball.y += ball.dy;
+        } else {
+          ball.dx *= -1;
+          ball.x += ball.dx;
+        }
+      }
+    });
+  }
+
+  function gameLoop() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    movePaddles();
+    updateBall();
+    drawWalls();
+    drawPaddles();
+    drawBall();
+    requestAnimationFrame(gameLoop);
+  }
+
+  gameLoop();
+</script>
+</body>
+</html>
