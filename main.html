@@ -5,24 +5,56 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Ping Pong 4 Jugadores - MVP</title>
   <style>
-    body { margin: 0; overflow: hidden; background: #000; }
-    canvas { display: block; margin: auto; background: #111; }
+    body {
+  margin: 0;
+  overflow: hidden;
+  background: #000;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  height: 100vh;
+}
+canvas {
+  display: block;
+  background: #111;
+}
+#livesBar {
+  width: 100vw;
+  height: 40px;
+  color: #fff;
+  font-family: Arial, sans-serif;
+  font-size: 22px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-top: 10px;
+  margin-bottom: 10px;
+  z-index: 2;
+  position: relative;
+  background: transparent;
+}
   </style>
 </head>
 <body>
-<canvas id="gameCanvas"></canvas>
+  <div id="livesBar"></div>
+  <canvas id="gameCanvas"></canvas>
 
-<script>
+  <script>
   const canvas = document.getElementById('gameCanvas');
   const ctx = canvas.getContext('2d');
 
-  canvas.width = window.innerWidth;
-  canvas.height = window.innerHeight;
+  // Hacer el canvas cuadrado y centrado
+  const topMargin = 20;   // espacio para la línea de vidas
+const bottomMargin = 20; // espacio inferior opcional
+const size = Math.min(window.innerWidth, window.innerHeight - topMargin - bottomMargin);
+canvas.width = size;
+canvas.height = size;
 
   const cornerLength = 80; // igual que el largo de las esquinas
   const paddleWidth = 100;
   const paddleHeight = 20;
-  const speed = 8;
+  const speed = 7;
 
   const cornerWallLong = 120; // largo de la pared de esquina
 const cornerWallShort = 30; // ancho de la pared de esquina
@@ -38,7 +70,9 @@ const paddles = [
     keys: ['ArrowLeft', 'ArrowRight'],
     dx: 0,
     min: cornerWallLong,
-    max: canvas.width - cornerWallLong - paddleWidth
+    max: canvas.width - cornerWallLong - paddleWidth,
+    lives: 5,
+    side: 'top'
   },
   // Izquierda (azul)
   {
@@ -50,7 +84,9 @@ const paddles = [
     keys: ['KeyW', 'KeyS'],
     dx: 0,
     min: cornerWallLong,
-    max: canvas.height - cornerWallLong - paddleWidth
+    max: canvas.height - cornerWallLong - paddleWidth,
+    lives: 5,
+    side: 'left'
   },
   // Abajo (amarillo)
   {
@@ -62,7 +98,9 @@ const paddles = [
     keys: ['KeyA', 'KeyD'],
     dx: 0,
     min: cornerWallLong,
-    max: canvas.width - cornerWallLong - paddleWidth
+    max: canvas.width - cornerWallLong - paddleWidth,
+    lives: 5,
+    side: 'bottom'
   },
   // Derecha (verde)
   {
@@ -74,7 +112,9 @@ const paddles = [
     keys: ['KeyJ', 'KeyL'],
     dx: 0,
     min: cornerWallLong,
-    max: canvas.height - cornerWallLong - paddleWidth
+    max: canvas.height - cornerWallLong - paddleWidth,
+    lives: 5,
+    side: 'right'
   }
 ];
 
@@ -134,10 +174,21 @@ const paddles = [
 
   function drawPaddles() {
     paddles.forEach(p => {
-      ctx.fillStyle = p.color;
-      ctx.fillRect(p.x, p.y, p.w, p.h);
+      if (p.lives > 0) {
+        ctx.fillStyle = p.color;
+        ctx.fillRect(p.x, p.y, p.w, p.h);
+        // Ya no dibujar las vidas aquí
+      }
     });
   }
+
+  // Nueva función para dibujar las vidas arriba del canvas
+  function drawLives() {
+  const livesBar = document.getElementById('livesBar');
+  livesBar.innerHTML = paddles.map(p =>
+    `<span style="color:${p.color};margin:0 20px;">❤ ${p.lives > 0 ? p.lives : 0}</span>`
+  ).join('');
+}
 
   function drawWalls() {
     ctx.fillStyle = '#555';
@@ -152,7 +203,64 @@ const paddles = [
     ctx.closePath();
   }
 
+  function resetBall() {
+    const startPos = getRandomCornerPosition();
+    ball.x = startPos.x;
+    ball.y = startPos.y;
+
+    let dx, dy, ratio;
+    do {
+      const angle = Math.random() * 2 * Math.PI;
+      dx = Math.cos(angle) * 5;
+      dy = Math.sin(angle) * 5;
+      ratio = Math.abs(dx / dy);
+    } while (
+      Math.abs(dx) < 2.2 || Math.abs(dy) < 2.2 || // evita trayectorias casi horizontales/verticales
+      ratio > 0.55 && ratio < 1.8                 // evita diagonales y trayectorias muy cuadradas
+    );
+
+    ball.dx = dx;
+    ball.dy = dy;
+  }
+
+  // Añade paredes completas cuando un jugador pierde todas sus vidas
+  function closeWall(side) {
+    if (side === 'top') {
+      cornerWalls.push({
+        x: cornerWallLong,
+        y: 0,
+        w: canvas.width - 2 * cornerWallLong,
+        h: 30
+      });
+    } else if (side === 'bottom') {
+      cornerWalls.push({
+        x: cornerWallLong,
+        y: canvas.height - 30,
+        w: canvas.width - 2 * cornerWallLong,
+        h: 30 // <-- Cambiado de 10 a 30
+      });
+    } else if (side === 'left') {
+      cornerWalls.push({
+        x: canvas.width - 30,
+        y: cornerWallLong,
+        w: 30, // <-- Cambiado de 10 a 30
+        h: canvas.height - 2 * cornerWallLong
+      });
+    } else if (side === 'right') {
+      cornerWalls.push({
+        x: 0,
+        y: cornerWallLong,
+        w: 30,
+        h: canvas.height - 2 * cornerWallLong
+      });
+    }
+  }
+
+  let gameOver = false;
+
   function updateBall() {
+    if (gameOver) return;
+
     ball.x += ball.dx;
     ball.y += ball.dy;
 
@@ -164,13 +272,10 @@ const paddles = [
         ball.y + ball.r > w.y &&
         ball.y - ball.r < w.y + w.h
       ) {
-        // Calcula la profundidad de la colisión en x e y
         const overlapX = Math.min(ball.x + ball.r - w.x, w.x + w.w - (ball.x - ball.r));
         const overlapY = Math.min(ball.y + ball.r - w.y, w.y + w.h - (ball.y - ball.r));
-        // Rebota en el eje de mayor penetración
         if (overlapX < overlapY) {
           ball.dx *= -1;
-          // Reposiciona fuera de la pared
           if (ball.x < w.x) ball.x = w.x - ball.r;
           else ball.x = w.x + w.w + ball.r;
         } else {
@@ -184,6 +289,7 @@ const paddles = [
     // Colisión con paletas
     paddles.forEach(p => {
       if (
+        p.lives > 0 &&
         ball.x + ball.r > p.x &&
         ball.x - ball.r < p.x + p.w &&
         ball.y + ball.r > p.y &&
@@ -198,19 +304,82 @@ const paddles = [
         }
       }
     });
+
+    // Detectar si la pelota sale por el lado de un jugador
+    // Arriba
+    if (ball.y + ball.r < 0) {
+      let p = paddles[0];
+      if (p.lives > 0) {
+        p.lives--;
+        if (p.lives === 0) {
+          closeWall('top');
+        }
+      }
+      resetBall();
+    }
+    // Abajo
+    else if (ball.y - ball.r > canvas.height) {
+      let p = paddles[2];
+      if (p.lives > 0) {
+        p.lives--;
+        if (p.lives === 0) {
+          closeWall('bottom');
+        }
+      }
+      resetBall();
+    }
+    // Derecha
+    else if (ball.x - ball.r > canvas.width) {
+      let p = paddles[1];
+      if (p.lives > 0) {
+        p.lives--;
+        if (p.lives === 0) {
+          closeWall('left');
+        }
+      }
+      resetBall();
+    }
+    // Izquierda
+    else if (ball.x + ball.r < 0) {
+      let p = paddles[3];
+      if (p.lives > 0) {
+        p.lives--;
+        if (p.lives === 0) {
+          closeWall('right');
+        }
+      }
+      resetBall();
+    }
+
+    // Verificar si solo queda un jugador
+    const vivos = paddles.filter(p => p.lives > 0);
+    if (vivos.length === 1) {
+      gameOver = true;
+      setTimeout(() => {
+        ctx.fillStyle = "#fff";
+        ctx.font = "48px Arial";
+        ctx.textAlign = "center";
+        ctx.fillText(
+          `¡Ganador: ${vivos[0].color.toUpperCase()}!`,
+          canvas.width / 2,
+          canvas.height / 2
+        );
+      }, 100);
+    }
   }
 
   function gameLoop() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+    drawLives(); // <-- Añade esto
     movePaddles();
     updateBall();
     drawWalls();
     drawPaddles();
     drawBall();
-    requestAnimationFrame(gameLoop);
+    if (!gameOver) requestAnimationFrame(gameLoop);
   }
 
   gameLoop();
-</script>
+  </script>
 </body>
 </html>
