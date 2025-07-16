@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <title>Ping Pong 4 Jugadores - MVP</title>
   <style>
     body {
@@ -15,16 +15,18 @@
   justify-content: flex-start;
   height: 100vh;
 }
+html, body {
+  overscroll-behavior: none;
+  touch-action: none;
+}
+
 
 canvas {
   display: block;
-  background: #111;
-  display: block;
-  max-width: 100vw;
-  max-height: 100vw;
-  width: 100%;
-  height: auto;
+  margin-top: 10px;
 }
+
+
 
 #livesBar {
   width: 100%;
@@ -39,25 +41,49 @@ canvas {
   position: relative;
   background: transparent;
 }
-#startScreen input, #startScreen button {
-  font-size: 4vw;
-  padding: 2vw 4vw;
-  margin: 1vw;
+#startScreen input,
+#startScreen button {
+  font-size: clamp(16px, 4vw, 28px);
+  padding: 1rem 2rem;
 }
+
+/* Estilos para móviles (pantallas menores a 600px) */
+  @media (max-width: 600px) {
+    #startContent {
+      padding: 20px;
+      box-sizing: border-box;
+    }
+    
+    #startContent h1 {
+      font-size: 24px;
+      margin-bottom: 15px;
+    }
+    
+    #startContent div {
+      width: 95%;
+    }
+    
+    #startContent input {
+      width: 100%;
+      margin: 5px 0;
+    }
+  }
   </style>
 </head>
 <body>
   <div id="livesBar"></div>
   <div id="startScreen" style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:100vh; background-color:rgba(0,0,0,0.8); color:#fff;">
   <div id="startContent" style="position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.8); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 10;">
-    <h1>Ping Pong 4 Jugadores</h1>
-    <div>
-      <input type="text" placeholder="Jugador Rojo" id="nameRed" style="margin:5px;" value="Rojo">
-      <input type="text" placeholder="Jugador Azul" id="nameBlue" style="margin:5px;" value="Azul">
-      <input type="text" placeholder="Jugador Amarillo" id="nameYellow" style="margin:5px;" value="Amarillo">
-      <input type="text" placeholder="Jugador Verde" id="nameGreen" style="margin:5px;" value="Verde">
+    <h1 style="color: white; text-align: center; margin-bottom: 20px;">Ping Pong 4 Jugadores</h1>
+    <div style="display: flex; flex-direction: column; width: 80%; max-width: 400px;">
+      <input type="text" placeholder="Jugador Rojo" id="nameRed" style="margin:5px; padding: 10px; font-size: 16px; border-radius: 5px; border: none;" value="Rojo">
+      <input type="text" placeholder="Jugador Azul" id="nameBlue" style="margin:5px; padding: 10px; font-size: 16px; border-radius: 5px; border: none;" value="Azul">
+      <input type="text" placeholder="Jugador Amarillo" id="nameYellow" style="margin:5px; padding: 10px; font-size: 16px; border-radius: 5px; border: none;" value="Amarillo">
+      <input type="text" placeholder="Jugador Verde" id="nameGreen" style="margin:5px; padding: 10px; font-size: 16px; border-radius: 5px; border: none;" value="Verde">
     </div>
-    <button onclick="startGame()">Jugar</button>
+     <button onclick="startGame()">Jugar</button>
+</div>
+  
   </div>
   <div id="endContent" style="display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.7); z-index:100; flex-direction:column; align-items:center; justify-content:center;">
     <h1 id="winnerName" style="color: #fff; margin-bottom: 30px;">🎉 ¡Ganador! 🎉</h1>
@@ -74,15 +100,21 @@ canvas {
   const ctx = canvas.getContext('2d');
 
 function resizeCanvas() {
-  const topMargin = 60;
-  const bottomMargin = 30;
-  const sideMargin = 30; // margen lateral agregado
-  const size = Math.min(window.innerWidth - 2 * sideMargin, window.innerHeight - topMargin - bottomMargin);
+  const livesBarHeight = document.getElementById('livesBar').offsetHeight || 40;
+  const margin = 20;
+
+  const maxHeight = window.innerHeight - livesBarHeight - margin;
+  const maxWidth = window.innerWidth - margin;
+
+  const size = Math.min(maxWidth, maxHeight);
+
   canvas.width = size;
   canvas.height = size;
-  canvas.style.marginLeft = sideMargin + "px";
-  canvas.style.marginRight = sideMargin + "px";
+
+  canvas.style.width = size + 'px';
+  canvas.style.height = size + 'px';
 }
+
 
 window.addEventListener('resize', () => {
   resizeCanvas();
@@ -650,8 +682,11 @@ canvas.addEventListener('touchstart', function(e) {
   e.preventDefault();
   const touch = e.touches[0];
   const rect = canvas.getBoundingClientRect();
-  const x = touch.clientX - rect.left;
-  const y = touch.clientY - rect.top;
+  const scaleX = canvas.width / rect.width;
+  const scaleY = canvas.height / rect.height;
+  const x = (touch.clientX - rect.left) * scaleX;
+  const y = (touch.clientY - rect.top) * scaleY;
+
 
   // Verificar todas las paletas en orden
   paddles.forEach((paddle, index) => {
@@ -676,8 +711,11 @@ canvas.addEventListener('touchmove', function(e) {
   e.preventDefault();
   const touch = e.touches[0];
   const rect = canvas.getBoundingClientRect();
-  const x = touch.clientX - rect.left;
-  const y = touch.clientY - rect.top;
+  const scaleX = canvas.width / rect.width;
+  const scaleY = canvas.height / rect.height;
+  const x = (touch.clientX - rect.left) * scaleX;
+  const y = (touch.clientY - rect.top) * scaleY;
+
 
   const paddle = paddles[draggingPaddle];
   
@@ -691,6 +729,11 @@ canvas.addEventListener('touchmove', function(e) {
 canvas.addEventListener('touchend', function(e) {
   draggingPaddle = null;
 });
+
+window.addEventListener('orientationchange', () => {
+  setTimeout(resizeCanvas, 200); // esperar a que se establezca correctamente el tamaño
+});
+
   </script>
 </body>
 </html>
