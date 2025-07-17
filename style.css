@@ -1,0 +1,116 @@
+/* Reset básico */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  overscroll-behavior: none;
+  touch-action: none;
+  height: 100vh;
+  background: #000;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  font-family: Arial, sans-serif;
+  overflow: hidden;
+}
+
+canvas {
+  display: block;
+  margin-top: 10px;
+}
+
+/* Barra de vidas */
+#livesBar {
+  width: 100%;
+  height: 40px;
+  color: #fff;
+  font-size: 4vw;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 2;
+  position: relative;
+  background: transparent;
+}
+
+/* Pantallas de inicio y fin del juego */
+.overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background-color: rgba(0, 0, 0, 0.8);
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+}
+
+.centered-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 80%;
+  max-width: 400px;
+  text-align: center;
+}
+
+.centered-content h1 {
+  color: white;
+  margin-bottom: 20px;
+  font-size: 28px;
+}
+
+.input-group {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  margin-bottom: 20px;
+}
+
+.input-group input {
+  margin: 5px 0;
+  padding: 10px;
+  font-size: 16px;
+  border-radius: 5px;
+  border: none;
+}
+
+button {
+  background: #222;
+  color: #fff;
+  font-size: clamp(16px, 4vw, 28px);
+  padding: 1rem 2rem;
+  border-radius: 10px;
+  border: none;
+  cursor: pointer;
+}
+
+/* Responsive: pantallas pequeñas */
+@media (max-width: 600px) {
+  .centered-content h1 {
+    font-size: 24px;
+    margin-bottom: 15px;
+  }
+
+  .input-group {
+    width: 95%;
+  }
+
+  .input-group input {
+    width: 100%;
+  }
+
+  button {
+    font-size: 20px;
+    padding: 12px 20px;
+  }
+}

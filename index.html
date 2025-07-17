@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>Ping Pong 4 Jugadores</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div id="livesBar"></div>
+
+  <div id="startScreen" class="overlay">
+    <div id="startContent" class="centered-content">
+      <h1>Ping Pong 4 Jugadores</h1>
+      <div class="input-group">
+        <input type="text" id="nameRed" placeholder="Jugador Rojo" value="Rojo" />
+        <input type="text" id="nameBlue" placeholder="Jugador Azul" value="Azul" />
+        <input type="text" id="nameYellow" placeholder="Jugador Amarillo" value="Amarillo" />
+        <input type="text" id="nameGreen" placeholder="Jugador Verde" value="Verde" />
+      </div>
+      <button onclick="startGame()">Jugar</button>
+    </div>
+  </div>
+
+  <div id="endContent" class="overlay" style="display: none;">
+    <h1 id="winnerName">🎉 ¡Ganador! 🎉</h1>
+    <button onclick="restartGame()">Jugar de nuevo</button>
+  </div>
+
+  <canvas id="gameCanvas"></canvas>
+
+  <!-- Scripts -->
+<script src="js/game.js"></script>    <!-- primero: define canvas y paddles -->
+<script src="js/input.js"></script>   <!-- luego: ya puede usar window.canvas -->
+<script src="js/resize.js"></script>
+<script src="js/ui.js"></script>
+
+</body>
+</html>
