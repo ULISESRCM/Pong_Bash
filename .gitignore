@@ -1,0 +1,29 @@
+# Node.js
+node_modules/
+package-lock.json
+
+# Capacitor build output
+android/
+ios/
+web/android/
+web/ios/
+
+# VS Code
+.vscode/
+
+# Sistema
+.DS_Store
+Thumbs.db
+
+# Capacitor specific
+capacitor.config.ts
+capacitor.config.json.backup
+
+# Android Studio / Gradle
+.gradle/
+*.iml
+.idea/
+local.properties
+*.keystore
+build/
+output/
