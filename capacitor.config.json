@@ -1,0 +1,6 @@
+{
+  "appId": "com.MiltiPingPong.app",
+  "appName": "Multi Ping Pong",
+  "webDir": "web",
+  "bundledWebRuntime": false
+}
