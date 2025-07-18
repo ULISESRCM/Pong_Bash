@@ -13,6 +13,9 @@ function resizeCanvas() {
 
   canvas.style.width = size + 'px';
   canvas.style.height = size + 'px';
+
+  // Recalcular todas las dimensiones dinámicas
+  calculateDimensions();
 }
 
 // Evento para redimensionar al cambiar ventana
@@ -23,5 +26,8 @@ window.addEventListener('resize', () => {
 
 // Ajuste en móviles al cambiar orientación
 window.addEventListener('orientationchange', () => {
-  setTimeout(resizeCanvas, 200); // espera a que el sistema termine de redimensionar
+  setTimeout(() => {
+    resizeCanvas();
+    resetGame();
+  }, 200); // espera a que el sistema termine de redimensionar
 });

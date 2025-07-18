@@ -6,38 +6,32 @@ const ctx = canvas.getContext('2d');
 window.canvas = canvas;
 window.ctx = ctx;
 
-// 🎯 Estado del juego
+// 🎯 Estado del juegof
 let gameOver = false;
 let ballSpeed = 5;
 let noGoalTimer = null;
 const noGoalTimeout = 30000; // 30 segundos sin gol => aumento de velocidad
 
-// 🎯 Configuración general
-const paddleWidth = 100;
-const paddleHeight = 30;
-const speed = 7;
-
-const cornerWallLong = 100;
-const cornerWallShort = 30;
-const cornerLength = 80;
+// 🎯 Configuración proporcional (se calculará dinámicamente)
+let paddleLength, thickness, speed, cornerWallLong, ballRadius;
 
 // 🟥 Paletas (4 jugadores)
 const paddles = [
   {
     color: 'red', keys: ['ArrowLeft', 'ArrowRight'], side: 'top',
-    x: 0, y: 0, w: paddleWidth, h: paddleHeight, dx: 0, min: 0, max: 0, lives: 5
+    x: 0, y: 0, w: 0, h: 0, dx: 0, min: 0, max: 0, lives: 5
   },
   {
     color: 'blue', keys: ['KeyW', 'KeyS'], side: 'left',
-    x: 0, y: 0, w: paddleHeight, h: paddleWidth, dx: 0, min: 0, max: 0, lives: 5
+    x: 0, y: 0, w: 0, h: 0, dx: 0, min: 0, max: 0, lives: 5
   },
   {
     color: 'yellow', keys: ['KeyA', 'KeyD'], side: 'bottom',
-    x: 0, y: 0, w: paddleWidth, h: paddleHeight, dx: 0, min: 0, max: 0, lives: 5
+    x: 0, y: 0, w: 0, h: 0, dx: 0, min: 0, max: 0, lives: 5
   },
   {
     color: 'green', keys: ['KeyJ', 'KeyL'], side: 'right',
-    x: 0, y: 0, w: paddleHeight, h: paddleWidth, dx: 0, min: 0, max: 0, lives: 5
+    x: 0, y: 0, w: 0, h: 0, dx: 0, min: 0, max: 0, lives: 5
   }
 ];
 
@@ -49,10 +43,31 @@ const cornerWalls = [];
 
 // ⚪ Pelota
 const ball = {
-  x: 0, y: 0, r: 10,
+  x: 0, y: 0, r: 0,
   dx: 0, dy: 0,
   color: 'white'
 };
+
+/////////////////////////////
+// 📐 Calcular dimensiones dinámicas
+/////////////////////////////
+
+function calculateDimensions() {
+  const size = Math.min(canvas.width, canvas.height);
+  
+  // Proporciones basadas en el tamaño del canvas
+  paddleLength = size * 0.15; // 15% del tamaño (largo de la paleta)
+  thickness = size * 0.045; // 4.5% del tamaño - GROSOR UNIFICADO
+  speed = size * 0.01; // Velocidad proporcional
+  cornerWallLong = size * 0.15; // 15% del tamaño (largo de las paredes de esquina)
+  ballRadius = size * 0.015; // 1.5% del tamaño
+  
+  // Actualizar radio de la pelota
+  ball.r = ballRadius;
+  
+  // Actualizar velocidad base de la pelota proporcionalmente
+  ballSpeed = size * 0.012; // Velocidad base proporcional
+}
 
 /////////////////////////////
 // 📐 Redimensionar canvas
@@ -69,6 +84,9 @@ function resizeCanvas() {
   canvas.height = size;
   canvas.style.width = size + 'px';
   canvas.style.height = size + 'px';
+  
+  // Recalcular dimensiones después de redimensionar
+  calculateDimensions();
 }
 
 /////////////////////////////
@@ -78,76 +96,76 @@ function resizeCanvas() {
 function resetGame() {
   resizeCanvas();
 
-  // Reposicionar paletas (alineadas al borde)
+  // Reposicionar paletas (alineadas al borde) - USANDO GROSOR UNIFICADO
   paddles[0].x = cornerWallLong;
   paddles[0].y = 0;
-  paddles[0].w = paddleWidth;
-  paddles[0].h = paddleHeight;
+  paddles[0].w = paddleLength;
+  paddles[0].h = thickness; // Grosor unificado
   paddles[0].min = cornerWallLong;
-  paddles[0].max = canvas.width - cornerWallLong - paddleWidth;
+  paddles[0].max = canvas.width - cornerWallLong - paddleLength;
 
-  paddles[1].x = canvas.width - paddleHeight;
+  paddles[1].x = canvas.width - thickness; // Grosor unificado
   paddles[1].y = cornerWallLong;
-  paddles[1].w = paddleHeight;
-  paddles[1].h = paddleWidth;
+  paddles[1].w = thickness; // Grosor unificado
+  paddles[1].h = paddleLength;
   paddles[1].min = cornerWallLong;
-  paddles[1].max = canvas.height - cornerWallLong - paddleWidth;
+  paddles[1].max = canvas.height - cornerWallLong - paddleLength;
 
   paddles[2].x = cornerWallLong;
-  paddles[2].y = canvas.height - paddleHeight;
-  paddles[2].w = paddleWidth;
-  paddles[2].h = paddleHeight;
+  paddles[2].y = canvas.height - thickness; // Grosor unificado
+  paddles[2].w = paddleLength;
+  paddles[2].h = thickness; // Grosor unificado
   paddles[2].min = cornerWallLong;
-  paddles[2].max = canvas.width - cornerWallLong - paddleWidth;
+  paddles[2].max = canvas.width - cornerWallLong - paddleLength;
 
   paddles[3].x = 0;
   paddles[3].y = cornerWallLong;
-  paddles[3].w = paddleHeight;
-  paddles[3].h = paddleWidth;
+  paddles[3].w = thickness; // Grosor unificado
+  paddles[3].h = paddleLength;
   paddles[3].min = cornerWallLong;
-  paddles[3].max = canvas.height - cornerWallLong - paddleWidth;
+  paddles[3].max = canvas.height - cornerWallLong - paddleLength;
 
   // Resetear vidas
   paddles.forEach(p => p.lives = 5);
 
-  // Resetear velocidad
-  ballSpeed = 5;
+  // Resetear velocidad base
+ballSpeed = canvas.width * 0.012; // Velocidad base proporcional
 
-  // Paredes de esquina
+  // Paredes de esquina - USANDO GROSOR UNIFICADO
   cornerWalls.length = 0;
   cornerWalls.push(
-    { x: 0, y: 0, w: cornerWallLong, h: cornerWallShort },
-    { x: 0, y: 0, w: cornerWallShort, h: cornerWallLong },
-    { x: canvas.width - cornerWallLong, y: 0, w: cornerWallLong, h: cornerWallShort },
-    { x: canvas.width - cornerWallShort, y: 0, w: cornerWallShort, h: cornerWallLong },
-    { x: 0, y: canvas.height - cornerWallShort, w: cornerWallLong, h: cornerWallShort },
-    { x: 0, y: canvas.height - cornerWallLong, w: cornerWallShort, h: cornerWallLong },
-    { x: canvas.width - cornerWallLong, y: canvas.height - cornerWallShort, w: cornerWallLong, h: cornerWallShort },
-    { x: canvas.width - cornerWallShort, y: canvas.height - cornerWallLong, w: cornerWallShort, h: cornerWallLong }
+    { x: 0, y: 0, w: cornerWallLong, h: thickness },
+    { x: 0, y: 0, w: thickness, h: cornerWallLong },
+    { x: canvas.width - cornerWallLong, y: 0, w: cornerWallLong, h: thickness },
+    { x: canvas.width - thickness, y: 0, w: thickness, h: cornerWallLong },
+    { x: 0, y: canvas.height - thickness, w: cornerWallLong, h: thickness },
+    { x: 0, y: canvas.height - cornerWallLong, w: thickness, h: cornerWallLong },
+    { x: canvas.width - cornerWallLong, y: canvas.height - thickness, w: cornerWallLong, h: thickness },
+    { x: canvas.width - thickness, y: canvas.height - cornerWallLong, w: thickness, h: cornerWallLong }
   );
 
   resetBall();
 }
-
 
 /////////////////////////////
 // 🟠 Pelota: reiniciar y mover
 /////////////////////////////
 
 function resetBall() {
-  ballSpeed += 0.7;
+  ballSpeed += canvas.width * 0.001; // Incremento proporcional
   const startPos = getRandomCornerPosition();
   ball.x = startPos.x;
   ball.y = startPos.y;
 
   let dx, dy, ratio;
+  const minSpeed = canvas.width * 0.003; // Velocidad mínima proporcional
   do {
     const angle = Math.random() * 2 * Math.PI;
     dx = Math.cos(angle) * ballSpeed;
     dy = Math.sin(angle) * ballSpeed;
     ratio = Math.abs(dx / dy);
   } while (
-    Math.abs(dx) < 2.2 || Math.abs(dy) < 2.2 ||
+    Math.abs(dx) < minSpeed || Math.abs(dy) < minSpeed ||
     (ratio > 0.85 && ratio < 1.18)
   );
 
@@ -158,7 +176,7 @@ function resetBall() {
 }
 
 function getRandomCornerPosition() {
-  const offset = 60;
+  const offset = canvas.width * 0.1; // Offset proporcional
   return [
     { x: offset, y: offset },
     { x: canvas.width - offset, y: offset },
@@ -170,7 +188,8 @@ function getRandomCornerPosition() {
 function startNoGoalTimer() {
   if (noGoalTimer) clearTimeout(noGoalTimer);
   noGoalTimer = setTimeout(() => {
-    if (Math.abs(ball.dx) < 20 && Math.abs(ball.dy) < 20) {
+    const maxSpeed = canvas.width * 0.03; // Velocidad máxima proporcional
+    if (Math.abs(ball.dx) < maxSpeed && Math.abs(ball.dy) < maxSpeed) {
       ball.dx *= 1.25;
       ball.dy *= 1.25;
     }
@@ -273,14 +292,15 @@ function removeLife(index, side) {
 }
 
 function closeWall(side) {
+  // USAR GROSOR UNIFICADO para las paredes que se crean cuando un jugador pierde
   if (side === 'top') {
-    cornerWalls.push({ x: cornerWallLong, y: 0, w: canvas.width - 2 * cornerWallLong, h: 30 });
+    cornerWalls.push({ x: cornerWallLong, y: 0, w: canvas.width - 2 * cornerWallLong, h: thickness });
   } else if (side === 'bottom') {
-    cornerWalls.push({ x: cornerWallLong, y: canvas.height - 30, w: canvas.width - 2 * cornerWallLong, h: 30 });
+    cornerWalls.push({ x: cornerWallLong, y: canvas.height - thickness, w: canvas.width - 2 * cornerWallLong, h: thickness });
   } else if (side === 'left') {
-    cornerWalls.push({ x: canvas.width - 30, y: cornerWallLong, w: 30, h: canvas.height - 2 * cornerWallLong });
+    cornerWalls.push({ x: canvas.width - thickness, y: cornerWallLong, w: thickness, h: canvas.height - 2 * cornerWallLong });
   } else if (side === 'right') {
-    cornerWalls.push({ x: 0, y: cornerWallLong, w: 30, h: canvas.height - 2 * cornerWallLong });
+    cornerWalls.push({ x: 0, y: cornerWallLong, w: thickness, h: canvas.height - 2 * cornerWallLong });
   }
 }
 
@@ -309,7 +329,6 @@ function drawBall() {
   ctx.fill();
   ctx.closePath();
 }
-
 
 /////////////////////////////
 // 🧠 Movimiento de paletas
@@ -341,5 +360,8 @@ window.addEventListener('resize', () => {
 });
 
 window.addEventListener('orientationchange', () => {
-  setTimeout(resizeCanvas, 200);
+  setTimeout(() => {
+    resizeCanvas();
+    resetGame();
+  }, 200);
 });

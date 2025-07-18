@@ -47,10 +47,19 @@ function showWinner(paddle) {
   document.getElementById('endContent').style.display = 'flex';
 }
 
-// Dibujar vidas en la barra
+// Dibujar vidas en la barra con tamaño adaptativo
 function drawLives() {
   const livesBar = document.getElementById('livesBar');
-  livesBar.innerHTML = paddles.map(p =>
-    `<span style="color:${p.color};margin:0 20px;">❤ ${p.lives > 0 ? p.lives : 0}</span>`
-  ).join('');
+  const canvas = window.canvas;
+  
+  // Calcular tamaño de fuente basado en el tamaño del canvas
+  const fontSize = Math.max(12, canvas.width * 0.025);
+  const spacing = canvas.width * 0.02;
+  
+  livesBar.style.fontSize = fontSize + 'px';
+  
+  livesBar.innerHTML = paddles.map((p, index) => {
+    const playerName = playerNames[index] || `Jugador ${index + 1}`;
+    return `<span style="color:${p.color};margin:0 ${spacing}px;">❤ ${playerName}: ${p.lives > 0 ? p.lives : 0}</span>`;
+  }).join('');
 }

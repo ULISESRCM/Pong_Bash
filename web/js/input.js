@@ -6,10 +6,14 @@ window.addEventListener('keyup', (e) => keysPressed[e.code] = false);
 // Movimiento con teclado
 function movePaddles() {
   const paddles = window.paddles;
+  const canvas = window.canvas;
+  
+  // Velocidad proporcional al tamaño del canvas
+  const dynamicSpeed = canvas.width * 0.01;
 
   paddles.forEach((p) => {
-    if (keysPressed[p.keys[0]]) p.dx = -speed;
-    else if (keysPressed[p.keys[1]]) p.dx = speed;
+    if (keysPressed[p.keys[0]]) p.dx = -dynamicSpeed;
+    else if (keysPressed[p.keys[1]]) p.dx = dynamicSpeed;
     else p.dx = 0;
 
     if (p.w > p.h) {

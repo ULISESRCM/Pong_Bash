@@ -23,18 +23,26 @@ canvas {
   margin-top: 10px;
 }
 
-/* Barra de vidas */
+/* Barra de vidas con tamaño adaptativo */
 #livesBar {
   width: 100%;
-  height: 40px;
+  min-height: 40px;
+  padding: 5px;
   color: #fff;
-  font-size: 4vw;
+  font-size: clamp(12px, 2.5vw, 24px);
   display: flex;
   justify-content: center;
   align-items: center;
+  flex-wrap: wrap;
   z-index: 2;
   position: relative;
   background: transparent;
+  text-align: center;
+}
+
+#livesBar span {
+  margin: 2px clamp(5px, 2vw, 20px);
+  white-space: nowrap;
 }
 
 /* Pantallas de inicio y fin del juego */
@@ -58,15 +66,16 @@ canvas {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  width: 80%;
+  width: 90%;
   max-width: 400px;
   text-align: center;
+  padding: 20px;
 }
 
 .centered-content h1 {
   color: white;
   margin-bottom: 20px;
-  font-size: 28px;
+  font-size: clamp(20px, 5vw, 36px);
 }
 
 .input-group {
@@ -78,39 +87,96 @@ canvas {
 
 .input-group input {
   margin: 5px 0;
-  padding: 10px;
-  font-size: 16px;
+  padding: clamp(8px, 2vw, 12px);
+  font-size: clamp(14px, 3vw, 18px);
   border-radius: 5px;
   border: none;
+  min-height: 40px;
 }
 
 button {
   background: #222;
   color: #fff;
-  font-size: clamp(16px, 4vw, 28px);
-  padding: 1rem 2rem;
+  font-size: clamp(16px, 4vw, 24px);
+  padding: clamp(10px, 2vw, 16px) clamp(20px, 4vw, 32px);
   border-radius: 10px;
   border: none;
   cursor: pointer;
+  min-height: 44px;
+  transition: background 0.3s;
 }
 
-/* Responsive: pantallas pequeñas */
-@media (max-width: 600px) {
+button:hover {
+  background: #333;
+}
+
+button:active {
+  background: #111;
+}
+
+/* Responsive: pantallas muy pequeñas */
+@media (max-width: 400px) {
+  .centered-content {
+    width: 95%;
+    padding: 15px;
+  }
+  
   .centered-content h1 {
-    font-size: 24px;
     margin-bottom: 15px;
   }
 
-  .input-group {
-    width: 95%;
-  }
-
   .input-group input {
-    width: 100%;
+    margin: 3px 0;
   }
 
+  #livesBar {
+    min-height: 35px;
+    padding: 3px;
+  }
+  
+  #livesBar span {
+    margin: 1px 5px;
+    font-size: 12px;
+  }
+}
+
+/* Responsive: pantallas grandes */
+@media (min-width: 800px) {
+  .centered-content {
+    max-width: 500px;
+  }
+  
+  .input-group {
+    margin-bottom: 30px;
+  }
+  
+  .input-group input {
+    margin: 8px 0;
+  }
+}
+
+/* Ajustes para orientación horizontal en móviles */
+@media (orientation: landscape) and (max-height: 500px) {
+  .centered-content h1 {
+    font-size: clamp(18px, 4vw, 28px);
+    margin-bottom: 15px;
+  }
+  
+  .input-group {
+    margin-bottom: 15px;
+  }
+  
+  .input-group input {
+    margin: 3px 0;
+    padding: 8px;
+  }
+  
   button {
-    font-size: 20px;
-    padding: 12px 20px;
+    padding: 8px 16px;
+  }
+  
+  #livesBar {
+    min-height: 30px;
+    padding: 2px;
   }
 }
