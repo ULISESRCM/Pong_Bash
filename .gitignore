@@ -1,29 +1,47 @@
-# Node.js
+# Node / JS
 node_modules/
-package-lock.json
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
 
-# Capacitor build output
+# Environment / secrets
+.env
+.env.local
+
+# Build outputs
+dist/
+build/
+www/
+public/
+
+# Capacitor / mobile build output (keeps repo clean)
 android/
 ios/
 web/android/
 web/ios/
 
+# Android Studio / Gradle / keystore
+.gradle/
+local.properties
+*.iml
+.idea/
+*.keystore
+*.jks
+build/
+output/
+
 # VS Code
 .vscode/
 
-# Sistema
+# OS
 .DS_Store
 Thumbs.db
 
-# Capacitor specific
-capacitor.config.ts
-capacitor.config.json.backup
+# Logs
+*.log
 
-# Android Studio / Gradle
-.gradle/
-*.iml
-.idea/
-local.properties
-*.keystore
-build/
-output/
+# Optional: ignore coverage and test output
+coverage/
+
+# Keep package-lock.json committed for reproducible installs
+# (quitando package-lock.json de la lista permite control de versiones del lockfile)
