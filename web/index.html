@@ -1,11 +1,13 @@
 <!DOCTYPE html>
 <html lang="es">
+
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
   <title>Multi Ping Pong</title>
   <link rel="stylesheet" href="style.css" />
 </head>
+
 <body>
   <div id="livesBar"></div>
 
@@ -19,22 +21,93 @@
         <input type="text" id="nameYellow" placeholder="Jugador Amarillo" value="Amarillo" />
         <input type="text" id="nameGreen" placeholder="Jugador Verde" value="Verde" />
       </div>
-      <button onclick="startGame()">Jugar</button>
+
+      <!-- Local Play removed -->
+      <button onclick="toggleOnlineMenu()" style="background-color: #4a90e2; width: 100%; margin-top: 10px;">Jugar
+        Online</button>
     </div>
   </div>
 
   <div id="endContent" class="overlay" style="display: none;">
     <h1 id="winnerName">🎉 ¡Ganador! 🎉</h1>
     <button onclick="restartGame()">Jugar de nuevo</button>
+    <button onclick="leaveRoom()" style="background-color: #e74c3c; margin-top: 10px;">Salir de Sala</button>
   </div>
 
   <canvas id="gameCanvas"></canvas>
 
+  <!-- Socket.io -->
+  <script src="https://cdn.socket.io/4.7.4/socket.io.min.js"></script>
+  <script src="js/network.js"></script>
+
   <!-- Scripts -->
-<script src="js/game.js"></script>    <!-- primero: define canvas y paddles -->
-<script src="js/input.js"></script>   <!-- luego: ya puede usar window.canvas -->
-<script src="js/resize.js"></script>
-<script src="js/ui.js"></script>
+  <script src="js/game.js"></script> <!-- primero: define canvas y paddles -->
+  <script src="js/input.js"></script> <!-- luego: ya puede usar window.canvas -->
+  <script src="js/ui.js"></script>
+  <script src="js/resize.js"></script>
+
+  <!-- Online Menu Overlay -->
+  <div id="onlineMenu"
+    style="position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(0,0,0,0.9); padding: 40px; border: 2px solid white; border-radius: 10px; color: white; display: none; text-align: center; z-index: 100; min-width: 350px;">
+
+    <!-- Main Menu View -->
+    <div id="onlineMainView">
+      <h2>Juego Online</h2>
+      <br>
+      <button onclick="startOnline('create')" style="width: 100%; margin-bottom: 15px;">Crear Sala</button>
+
+      <div style="display: flex; gap: 10px; justify-content: center; width: 100%;">
+        <input type="text" id="roomCodeInput" placeholder="Código de Sala"
+          style="padding: 10px; font-size: 16px; flex: 1;">
+        <button onclick="startOnline('join')" style="flex: 1;">Unirse</button>
+      </div>
+      <br><br>
+      <button onclick="document.getElementById('onlineMenu').style.display = 'none'"
+        style="background: #e74c3c;">Cerrar</button>
+    </div>
+
+    <!-- Lobby View -->
+    <div id="onlineLobbyView" style="display: none;">
+      <h2>Sala: <span id="lobbyRoomCode" style="color: #4a90e2;"></span></h2>
+      <p>Jugadores conectados:</p>
+      <ul id="lobbyPlayerList" style="list-style: none; padding: 0; margin: 20px 0; font-size: 18px;">
+        <!-- Player list items will go here -->
+      </ul>
+
+      <button id="readyButton" onclick="network.toggleReady()"
+        style="background-color: #f1c40f; width: 100%; margin-bottom: 10px; display: none;">Marcar como LISTO</button>
+
+      <div id="hostControls" style="display: none;">
+        <button onclick="network.startGame()" style="background-color: #2ecc71; width: 100%;">COMENZAR JUEGO</button>
+      </div>
+      <p id="waitingMessage" style="display: none; color: #999;">Esperando al anfitrión...</p>
+    </div>
+  </div>
+
+  <script>
+    function startOnline(action) {
+      // Connect if not initialized
+      if (!network.socket) {
+        network.connect();
+      }
+
+      // If we just connected, give it a moment or rely on buffering.
+      if (action === 'create') {
+        network.createRoom();
+      } else if (action === 'join') {
+        const code = document.getElementById('roomCodeInput').value;
+        if (code) network.joinRoom(code);
+        else alert("Ingresa un código");
+      }
+    }
+
+    // Expose toggle function
+    window.toggleOnlineMenu = function () {
+      const menu = document.getElementById('onlineMenu');
+      menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
+    }
+  </script>
 
 </body>
+
 </html>

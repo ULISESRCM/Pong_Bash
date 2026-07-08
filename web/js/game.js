@@ -54,40 +54,23 @@ const ball = {
 
 function calculateDimensions() {
   const size = Math.min(canvas.width, canvas.height);
-  
+
   // Proporciones basadas en el tamaño del canvas
   paddleLength = size * 0.15; // 15% del tamaño (largo de la paleta)
   thickness = size * 0.045; // 4.5% del tamaño - GROSOR UNIFICADO
-  speed = size * 0.01; // Velocidad proporcional
+  speed = size * 0.02; // Velocidad AUMENTADA (antes 0.01)
   cornerWallLong = size * 0.15; // 15% del tamaño (largo de las paredes de esquina)
   ballRadius = size * 0.015; // 1.5% del tamaño
-  
+
   // Actualizar radio de la pelota
   ball.r = ballRadius;
-  
+
   // Actualizar velocidad base de la pelota proporcionalmente
   ballSpeed = size * 0.012; // Velocidad base proporcional
 }
 
 /////////////////////////////
 // 📐 Redimensionar canvas
-/////////////////////////////
-
-function resizeCanvas() {
-  const livesBarHeight = document.getElementById('livesBar').offsetHeight || 40;
-  const margin = 20;
-  const maxHeight = window.innerHeight - livesBarHeight - margin;
-  const maxWidth = window.innerWidth - margin;
-  const size = Math.min(maxWidth, maxHeight);
-
-  canvas.width = size;
-  canvas.height = size;
-  canvas.style.width = size + 'px';
-  canvas.style.height = size + 'px';
-  
-  // Recalcular dimensiones después de redimensionar
-  calculateDimensions();
-}
 
 /////////////////////////////
 // 🔄 Reiniciar estado del juego
@@ -125,13 +108,10 @@ function resetGame() {
   paddles[3].min = cornerWallLong;
   paddles[3].max = canvas.height - cornerWallLong - paddleLength;
 
-  // Resetear vidas
+  // Resetear vidas a 5
   paddles.forEach(p => p.lives = 5);
 
-  // Resetear velocidad base
-ballSpeed = canvas.width * 0.012; // Velocidad base proporcional
-
-  // Paredes de esquina - USANDO GROSOR UNIFICADO
+  // Paredes de esquina iniciales
   cornerWalls.length = 0;
   cornerWalls.push(
     { x: 0, y: 0, w: cornerWallLong, h: thickness },
@@ -144,6 +124,12 @@ ballSpeed = canvas.width * 0.012; // Velocidad base proporcional
     { x: canvas.width - thickness, y: canvas.height - cornerWallLong, w: thickness, h: cornerWallLong }
   );
 
+
+
+  // Resetear velocidad base
+  ballSpeed = canvas.width * 0.012; // Velocidad base proporcional
+
+  gameOver = false; // Resetear variable local (window.gameOver no es la misma)
   resetBall();
 }
 
@@ -210,45 +196,169 @@ function gameLoop() {
   drawPaddles();
   drawBall();
 
-  if (!gameOver) requestAnimationFrame(gameLoop);
+  if (!gameOver) {
+    requestAnimationFrame(gameLoop);
+  } else {
+    window.loopRunning = false; // Permite reiniciar el loop en la próxima partida
+  }
 }
+
+
 
 function updateBall() {
   if (gameOver) return;
 
+  // 🌐 ONLINE: Clientes extrapolan localmente — el host corrige cada ~33ms
+  if (window.network && window.network.roomId && !window.network.isHost) {
+    // Extrapolación simple: mover con la velocidad conocida (60fps suave)
+    // El host manda correcciones a 30fps que snap directo sin lerp
+    ball.x += ball.dx;
+    ball.y += ball.dy;
+    return;
+  }
+
+  // Movimiento
   ball.x += ball.dx;
   ball.y += ball.dy;
 
-  // Rebote en muros
+  // 1. Rebote en Paredes de Esquina (Corner Walls)
   cornerWalls.forEach(w => {
-    if (
-      ball.x + ball.r > w.x &&
-      ball.x - ball.r < w.x + w.w &&
-      ball.y + ball.r > w.y &&
-      ball.y - ball.r < w.y + w.h
-    ) {
-      const overlapX = Math.min(ball.x + ball.r - w.x, w.x + w.w - (ball.x - ball.r));
-      const overlapY = Math.min(ball.y + ball.r - w.y, w.y + w.h - (ball.y - ball.r));
-      if (overlapX < overlapY) ball.dx *= -1;
-      else ball.dy *= -1;
+    if (checkRectCollision(ball, w)) {
+      resolveWallCollision(ball, w);
     }
   });
 
-  // Rebote en paletas
+  // 2. Rebote en Paletas (Paddles)
   paddles.forEach(p => {
-    if (
-      p.lives > 0 &&
-      ball.x + ball.r > p.x &&
-      ball.x - ball.r < p.x + p.w &&
-      ball.y + ball.r > p.y &&
-      ball.y - ball.r < p.y + p.h
-    ) {
-      if (p.w > p.h) ball.dy *= -1;
-      else ball.dx *= -1;
+    if (p.lives > 0 && checkRectCollision(ball, p)) {
+      // Determinar punto de impacto relativo (-1 a 1)
+      let collidePoint = 0;
+      let isSmash = false; // Flag para detectar si hubo "empuje"
+
+      // Paletas horizontales (Top/Bottom)
+      if (p.w > p.h) {
+        const center = p.x + p.w / 2;
+        collidePoint = (ball.x - center) / (p.w / 2);
+
+        let directionY = (ball.dy > 0) ? -1 : 1;
+
+        // DETECCIÓN DE DASH / SMASH
+        // Si la paleta se mueve muy rápido (usamos un umbral)
+        // Y si el movimiento lateral coincide con la dirección horizontal de la pelota (opcional)
+        // O simplemente si se está moviendo al momento del impacto, le da un boost.
+        // Simplificación: Si |p.dx| > 0, es un golpe con movimiento.
+        if (Math.abs(p.dx) > 0) {
+          isSmash = true;
+        }
+
+        const angleRad = collidePoint * (Math.PI / 3);
+
+        // Velocidad base del rebote
+        let speed = Math.sqrt(ball.dx * ball.dx + ball.dy * ball.dy);
+
+        // APLICAR BOOST SI ES SMASH
+        if (isSmash) {
+          speed *= 1.5; // 50% más rápido!
+          ball.color = p.color; // La pelota toma el color del jugador
+        } else {
+          speed *= 1.05; // Aceleración normal
+          ball.color = 'white'; // Color normal
+        }
+
+        // Limitar velocidad máxima para que no rompa la física
+        const maxSpeed = canvas.width * 0.04;
+        speed = Math.min(speed, maxSpeed);
+
+        ball.dx = speed * Math.sin(angleRad);
+        ball.dy = directionY * speed * Math.cos(angleRad);
+
+        // Ajuste para evitar que se pegue: mover la pelota fuera de la paleta
+        if (directionY === 1) ball.y = p.y + p.h + ball.r + 1;
+        else ball.y = p.y - ball.r - 1;
+
+      }
+      // Paletas verticales (Left/Right)
+      else {
+        const center = p.y + p.h / 2;
+        collidePoint = (ball.y - center) / (p.h / 2);
+
+        let directionX = (ball.dx > 0) ? -1 : 1;
+
+        // DETECCIÓN DE DASH
+        if (Math.abs(p.dx) > 0) { // Nota: en verticales también es .dx porque usamos un solo prop de velocidad
+          isSmash = true;
+        }
+
+        const angleRad = collidePoint * (Math.PI / 3);
+        let speed = Math.sqrt(ball.dx * ball.dx + ball.dy * ball.dy);
+
+        if (isSmash) {
+          speed *= 1.5;
+          ball.color = p.color;
+        } else {
+          speed *= 1.05;
+          ball.color = 'white';
+        }
+
+        const maxSpeed = canvas.width * 0.04;
+        speed = Math.min(speed, maxSpeed);
+
+        ball.dx = directionX * speed * Math.cos(angleRad);
+        ball.dy = speed * Math.sin(angleRad);
+
+        // Ajuste anti-stick
+        if (directionX === 1) ball.x = p.x + p.w + ball.r + 1;
+        else ball.x = p.x - ball.r - 1;
+      }
     }
   });
 
   checkGoal();
+
+  // 🌐 ONLINE: Host envía posición de la pelota (throttled ~30fps, normalizada)
+  if (window.network && window.network.roomId && window.network.isHost) {
+    const now = Date.now();
+    if (!ball.lastSent || now - ball.lastSent > 33) {
+      // Normalizar a 0-1 para compatibilidad entre distintos tamaños de canvas
+      window.network.sendBallUpdate(
+        ball.x / canvas.width, ball.y / canvas.height,
+        ball.dx / canvas.width, ball.dy / canvas.height
+      );
+      ball.lastSent = now;
+    }
+  }
+}
+
+// Helper de colisión AABB simple para círculo vs rect
+function checkRectCollision(circle, rect) {
+  // Encontrar el punto más cercano en el rectángulo al centro del círculo
+  const closestX = Math.max(rect.x, Math.min(circle.x, rect.x + rect.w));
+  const closestY = Math.max(rect.y, Math.min(circle.y, rect.y + rect.h));
+
+  // Distancia entre ese punto cercano y el centro del círculo
+  const distanceX = circle.x - closestX;
+  const distanceY = circle.y - closestY;
+
+  // Si la distancia es menor que el radio, hay colisión
+  const distanceSquared = (distanceX * distanceX) + (distanceY * distanceY);
+  return distanceSquared < (circle.r * circle.r);
+}
+
+function resolveWallCollision(circle, rect) {
+  // Lógica simple de rebote en pared estática
+  // Determinar de qué lado vino para invertir DX o DY
+  const overlapX = Math.min(circle.x + circle.r - rect.x, rect.x + rect.w - (circle.x - circle.r));
+  const overlapY = Math.min(circle.y + circle.r - rect.y, rect.y + rect.h - (circle.y - circle.r));
+
+  if (overlapX < overlapY) {
+    circle.dx *= -1;
+    // Add randomness to prevent loops
+    circle.dy += (Math.random() - 0.5) * 0.5;
+  } else {
+    circle.dy *= -1;
+    // Add randomness to prevent loops
+    circle.dx += (Math.random() - 0.5) * 0.5;
+  }
 }
 
 /////////////////////////////
@@ -261,10 +371,26 @@ function checkGoal() {
   const outLeft = ball.x - ball.r > canvas.width;
   const outRight = ball.x + ball.r < 0;
 
-  if (outTop) removeLife(0, 'top');
-  else if (outBottom) removeLife(2, 'bottom');
-  else if (outLeft) removeLife(1, 'left');
-  else if (outRight) removeLife(3, 'right');
+  let lostIndex = -1;
+  if (outTop) lostIndex = 0;
+  else if (outBottom) lostIndex = 2;
+  else if (outLeft) lostIndex = 1;
+  else if (outRight) lostIndex = 3;
+
+  if (lostIndex !== -1) {
+    // If Online Host, send update INSTEAD of local remove? 
+    // Or remove local and send update. Best to be authoritative.
+    if (window.network && window.network.roomId && window.network.isHost) {
+      // Send update first
+      const newLives = paddles[lostIndex].lives > 0 ? paddles[lostIndex].lives - 1 : 0;
+      window.network.sendLifeUpdate(lostIndex + 1, newLives);
+      // And update local
+      removeLife(lostIndex, ['top', 'left', 'bottom', 'right'][lostIndex]);
+    } else if (!window.network || !window.network.roomId) {
+      // Local play
+      removeLife(lostIndex, ['top', 'left', 'bottom', 'right'][lostIndex]);
+    }
+  }
 }
 
 function removeLife(index, side) {
@@ -278,9 +404,16 @@ function removeLife(index, side) {
   if (vivos.length === 1) {
     gameOver = true;
     drawLives();
+
+    // 🌐 ONLINE HOST SIGNAL
+    if (window.network && window.network.roomId && window.network.isHost) {
+      const ganadorIndex = paddles.indexOf(vivos[0]);
+      window.network.sendGameOver(ganadorIndex);
+    }
+
     setTimeout(() => {
       const ganadorIndex = paddles.indexOf(vivos[0]);
-      const nombreGanador = playerNames[ganadorIndex];
+      const nombreGanador = ["Rojo", "Azul", "Amarillo", "Verde"][ganadorIndex];
       document.getElementById('winnerName').textContent = `🎉 ¡Ganador: ${nombreGanador}! 🎉`;
       document.getElementById('startScreen').style.display = 'flex';
       document.getElementById('startContent').style.display = 'none';
@@ -335,33 +468,121 @@ function drawBall() {
 /////////////////////////////
 
 function movePaddles() {
-  paddles.forEach(p => {
-    if (keysPressed[p.keys[0]]) p.dx = -speed;
-    else if (keysPressed[p.keys[1]]) p.dx = speed;
-    else p.dx = 0;
+  paddles.forEach((p, index) => {
+    // 🌐 ONLINE LOGIC: Identify if this paddle is mine or remote
+    let isMyPaddle = true;
+    if (window.network && window.network.roomId) {
+      const netId = parseInt(window.network.playerId);
+      if (!isNaN(netId) && netId !== (index + 1)) {
+        isMyPaddle = false;
+      }
+    }
 
-    if (p.w > p.h) {
-      p.x += p.dx;
-      p.x = Math.max(p.min, Math.min(p.max, p.x));
+    if (isMyPaddle) {
+      // --- LOCAL CONTROL (My Paddle) ---
+      let moved = false;
+      if (keysPressed[p.keys[0]]) { p.dx = -speed; moved = true; }
+      else if (keysPressed[p.keys[1]]) { p.dx = speed; moved = true; }
+      else p.dx = 0;
+
+      if (p.w > p.h) {
+        p.x += p.dx;
+        p.x = Math.max(p.min, Math.min(p.max, p.x));
+      } else {
+        p.y += p.dx;
+        p.y = Math.max(p.min, Math.min(p.max, p.y));
+      }
+
+      // Send Network Update if moved (Throttled ~30fps)
+      const now = Date.now();
+      if (moved && window.network && window.network.roomId) {
+        if (!p.lastUpdate || now - p.lastUpdate > 30) {
+          // Normalizar a 0-1 para independencia del tamaño de canvas
+          window.network.sendMove(p.x / canvas.width, p.y / canvas.height);
+          p.lastUpdate = now;
+        }
+      }
+
     } else {
-      p.y += p.dx;
-      p.y = Math.max(p.min, Math.min(p.max, p.y));
+      // --- REMOTE INTERPOLATION (Other Players) ---
+      // If target position exists, smooth move towards it
+      const lerpFactor = 0.3; // Increased to 0.3 for faster catch-up
+      if (p.targetX !== undefined && p.w > p.h) {
+        p.x += (p.targetX - p.x) * lerpFactor;
+      } else if (p.targetY !== undefined && p.w < p.h) {
+        p.y += (p.targetY - p.y) * lerpFactor;
+      }
     }
   });
 }
 
-/////////////////////////////
-// 📐 Eventos de ventana
-/////////////////////////////
 
-window.addEventListener('resize', () => {
-  resizeCanvas();
-  resetGame();
-});
+// 🌐 ONLINE HELPERS
+window.updateRemotePaddle = function (playerId, x, y) {
+  if (!window.paddles) return;
+  const p = window.paddles[playerId - 1];
+  if (p) {
+    // Escalar coordenadas normalizadas al canvas local
+    if (p.w > p.h) p.targetX = x * canvas.width;
+    else p.targetY = y * canvas.height;
+  }
+};
 
-window.addEventListener('orientationchange', () => {
-  setTimeout(() => {
-    resizeCanvas();
-    resetGame();
-  }, 200);
-});
+window.updateRemoteBall = function (data) {
+  if (typeof ball === 'undefined') return;
+  // Escalar velocidad normalizada al canvas local
+  ball.dx = data.vx * canvas.width;
+  ball.dy = data.vy * canvas.height;
+  // Corregir posición solo si la desviación supera el umbral (evita saltos por jitter WiFi)
+  const serverX = data.x * canvas.width;
+  const serverY = data.y * canvas.height;
+  const desvX = serverX - ball.x;
+  const desvY = serverY - ball.y;
+  const desviacion = Math.sqrt(desvX * desvX + desvY * desvY);
+  const umbral = ball.r * 4; // Tolerancia: 4x el radio de la pelota
+  if (desviacion > umbral) {
+    ball.x = serverX;
+    ball.y = serverY;
+  }
+};
+
+window.updateRemoteLife = function (playerId, lives) {
+  // playerId is 1-4. Index is 0-3.
+  const pIndex = parseInt(playerId) - 1;
+  const p = paddles[pIndex];
+
+  if (p) {
+    const oldLives = p.lives;
+    p.lives = lives;
+
+    if (oldLives > 0 && lives === 0) {
+      closeWall(['top', 'left', 'bottom', 'right'][pIndex]);
+    }
+
+    // Draw lives immediately to reflect change
+    drawLives();
+
+    // Check game over condition locally
+    const vivos = paddles.filter(p => p.lives > 0);
+    if (vivos.length === 1) {
+      gameOver = true;
+      drawLives();
+
+      // If we are host, we should have caught this in checkGoal, 
+      // but if this came from a weird edge case, we ensure sync.
+      if (window.network && window.network.isHost && window.network.roomId) {
+        const ganadorIndex = paddles.indexOf(vivos[0]);
+        window.network.sendGameOver(ganadorIndex);
+      }
+
+      setTimeout(() => {
+        const ganadorIndex = paddles.indexOf(vivos[0]);
+        const nombreGanador = ["Rojo", "Azul", "Amarillo", "Verde"][ganadorIndex];
+        document.getElementById('winnerName').innerText = `🎉 ¡Ganador: ${nombreGanador}! 🎉`;
+        document.getElementById('startScreen').style.display = 'flex';
+        document.getElementById('startContent').style.display = 'none';
+        document.getElementById('endContent').style.display = 'flex';
+      }, 400);
+    }
+  }
+};

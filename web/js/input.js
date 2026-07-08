@@ -4,78 +4,75 @@ window.addEventListener('keydown', (e) => keysPressed[e.code] = true);
 window.addEventListener('keyup', (e) => keysPressed[e.code] = false);
 
 // Movimiento con teclado
-function movePaddles() {
-  const paddles = window.paddles;
+// La lógica de movimiento está en game.js para manejar el aislamiento online.
+
+
+// Movimiento con touch (Multi-touch real)
+const activeTouches = new Map(); // Mapa de {identifier: paddleIndex}
+
+function handleTouch(e) {
+  e.preventDefault();
   const canvas = window.canvas;
-  
-  // Velocidad proporcional al tamaño del canvas
-  const dynamicSpeed = canvas.width * 0.01;
+  const paddles = window.paddles;
+  const rect = canvas.getBoundingClientRect();
+  const scaleX = canvas.width / rect.width;
+  const scaleY = canvas.height / rect.height;
 
-  paddles.forEach((p) => {
-    if (keysPressed[p.keys[0]]) p.dx = -dynamicSpeed;
-    else if (keysPressed[p.keys[1]]) p.dx = dynamicSpeed;
-    else p.dx = 0;
+  // Procesar toques que cambiaron
+  for (let i = 0; i < e.changedTouches.length; i++) {
+    const touch = e.changedTouches[i];
+    const x = (touch.clientX - rect.left) * scaleX;
+    const y = (touch.clientY - rect.top) * scaleY;
+    const id = touch.identifier;
 
-    if (p.w > p.h) {
-      p.x += p.dx;
-      p.x = Math.max(p.min, Math.min(p.max, p.x));
-    } else {
-      p.y += p.dx;
-      p.y = Math.max(p.min, Math.min(p.max, p.y));
+    if (e.type === 'touchstart') {
+      // Verificar si tocó alguna paleta
+      paddles.forEach((p, index) => {
+        // ONLINE CHECK
+        if (window.network && window.network.roomId) {
+          const myId = parseInt(window.network.playerId);
+          if (!isNaN(myId) && myId !== (index + 1)) return;
+        }
+
+        if (p.lives > 0 &&
+          x >= p.x - 20 && x <= p.x + p.w + 20 && // Margen de tolerancia
+          y >= p.y - 20 && y <= p.y + p.h + 20) {
+
+          activeTouches.set(id, {
+            index: index,
+            offsetX: x - p.x,
+            offsetY: y - p.y
+          });
+        }
+      });
+    } else if (e.type === 'touchmove') {
+      const active = activeTouches.get(id);
+      if (active) {
+        const p = paddles[active.index];
+        if (p.w > p.h) { // Horizontal
+          p.x = x - active.offsetX;
+          p.x = Math.max(p.min, Math.min(p.max, p.x));
+        } else { // Vertical
+          p.y = y - active.offsetY;
+          p.y = Math.max(p.min, Math.min(p.max, p.y));
+        }
+
+        // Send Update (throttled a ~30fps, normalizado para independencia de canvas)
+        if (window.network && window.network.roomId) {
+          const now = Date.now();
+          if (!p.lastTouchSent || now - p.lastTouchSent > 30) {
+            window.network.sendMove(p.x / canvas.width, p.y / canvas.height);
+            p.lastTouchSent = now;
+          }
+        }
+      }
+    } else if (e.type === 'touchend' || e.type === 'touchcancel') {
+      activeTouches.delete(id);
     }
-  });
+  }
 }
 
-// Movimiento con touch (drag en móviles)
-let draggingPaddle = null;
-let dragOffset = 0;
-
-window.canvas.addEventListener('touchstart', function(e) {
-  e.preventDefault();
-  const canvas = window.canvas;
-  const paddles = window.paddles;
-
-  const touch = e.touches[0];
-  const rect = canvas.getBoundingClientRect();
-  const scaleX = canvas.width / rect.width;
-  const scaleY = canvas.height / rect.height;
-  const x = (touch.clientX - rect.left) * scaleX;
-  const y = (touch.clientY - rect.top) * scaleY;
-
-  paddles.forEach((paddle, index) => {
-    if (paddle.lives > 0 &&
-        x > paddle.x &&
-        x < paddle.x + paddle.w &&
-        y > paddle.y &&
-        y < paddle.y + paddle.h) {
-      draggingPaddle = index;
-      dragOffset = paddle.w > paddle.h ? x - paddle.x : y - paddle.y;
-    }
-  });
-});
-
-window.canvas.addEventListener('touchmove', function(e) {
-  if (draggingPaddle === null) return;
-  e.preventDefault();
-
-  const canvas = window.canvas;
-  const paddles = window.paddles;
-
-  const touch = e.touches[0];
-  const rect = canvas.getBoundingClientRect();
-  const scaleX = canvas.width / rect.width;
-  const scaleY = canvas.height / rect.height;
-  const x = (touch.clientX - rect.left) * scaleX;
-  const y = (touch.clientY - rect.top) * scaleY;
-
-  const paddle = paddles[draggingPaddle];
-  if (paddle.w > paddle.h) {
-    paddle.x = Math.max(paddle.min, Math.min(paddle.max, x - dragOffset));
-  } else {
-    paddle.y = Math.max(paddle.min, Math.min(paddle.max, y - dragOffset));
-  }
-});
-
-window.canvas.addEventListener('touchend', function() {
-  draggingPaddle = null;
-});
+window.canvas.addEventListener('touchstart', handleTouch, { passive: false });
+window.canvas.addEventListener('touchmove', handleTouch, { passive: false });
+window.canvas.addEventListener('touchend', handleTouch);
+window.canvas.addEventListener('touchcancel', handleTouch);
