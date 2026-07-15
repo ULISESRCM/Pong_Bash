@@ -8,7 +8,12 @@ const path = require('path');
 const app = express();
 app.use(cors());
 
-// Serve static files from the 'web' directory
+// Ruta de verificación de estado (Health Check)
+app.get('/', (req, res) => {
+    res.json({ status: "online", message: "Servidor de Pong Bash en funcionamiento." });
+});
+
+// Serve static files from the 'web' directory (si existen)
 app.use(express.static(path.join(__dirname, '../web')));
 
 const server = http.createServer(app);
