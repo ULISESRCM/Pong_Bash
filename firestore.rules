@@ -5,8 +5,51 @@ service cloud.firestore {
     match /users/{userId} {
       // Permitir que cualquiera lea el ranking (incluso sin iniciar sesión)
       allow read: if true;
-      // Solo el dueño del documento puede actualizar su ELO/apodo
-      allow write: if request.auth != null && request.auth.uid == userId;
+      
+      // Regla de escritura protegida contra alteraciones arbitrarias (Enfoque A)
+      allow write: if request.auth != null && request.auth.uid == userId
+        && (
+          // Caso 1: Creación de un nuevo documento (registro)
+          (!exists(/databases/$(database)/documents/users/$(userId))
+            && request.resource.data.elo == 100
+            && request.resource.data.eloWeekly == 100
+            && request.resource.data.eloMonthly == 100
+            && request.resource.data.gamesPlayed == 0
+            && request.resource.data.gamesWon == 0)
+          
+          ||
+          
+          // Caso 2: Actualización tras partida (Verificar incremento o decremento controlado)
+          (
+            // El número de partidas jugadas aumenta exactamente en 1
+            request.resource.data.gamesPlayed == resource.data.gamesPlayed + 1
+            && (
+              // Subcaso 2.1: Victoria (eloDelta es +15, gamesWon aumenta en 1)
+              (
+                request.resource.data.elo == resource.data.elo + 15
+                && request.resource.data.eloWeekly == (resource.data.weeklyKey == request.resource.data.weeklyKey ? resource.data.eloWeekly + 15 : 115)
+                && request.resource.data.eloMonthly == (resource.data.monthlyKey == request.resource.data.monthlyKey ? resource.data.eloMonthly + 15 : 115)
+                && request.resource.data.gamesWon == resource.data.gamesWon + 1
+              )
+              ||
+              // Subcaso 2.2: Segundo puesto (eloDelta es +5, gamesWon se mantiene)
+              (
+                request.resource.data.elo == resource.data.elo + 5
+                && request.resource.data.eloWeekly == (resource.data.weeklyKey == request.resource.data.weeklyKey ? resource.data.eloWeekly + 5 : 105)
+                && request.resource.data.eloMonthly == (resource.data.monthlyKey == request.resource.data.monthlyKey ? resource.data.eloMonthly + 5 : 105)
+                && request.resource.data.gamesWon == resource.data.gamesWon
+              )
+              ||
+              // Subcaso 2.3: Derrota (eloDelta es -5, gamesWon se mantiene)
+              (
+                request.resource.data.elo == (resource.data.elo - 5 < 0 ? 0 : resource.data.elo - 5)
+                && request.resource.data.eloWeekly == (resource.data.weeklyKey == request.resource.data.weeklyKey ? (resource.data.eloWeekly - 5 < 0 ? 0 : resource.data.eloWeekly - 5) : 95)
+                && request.resource.data.eloMonthly == (resource.data.monthlyKey == request.resource.data.monthlyKey ? (resource.data.eloMonthly - 5 < 0 ? 0 : resource.data.eloMonthly - 5) : 95)
+                && request.resource.data.gamesWon == resource.data.gamesWon
+              )
+            )
+          )
+        );
     }
   }
 }
