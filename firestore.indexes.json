@@ -46,6 +46,23 @@
   //     ]
   //   },
   // ]
-  "indexes": [],
+  "indexes": [
+    {
+      "collectionGroup": "users",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "weeklyKey", "order": "ASCENDING" },
+        { "fieldPath": "eloWeekly", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "users",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "monthlyKey", "order": "ASCENDING" },
+        { "fieldPath": "eloMonthly", "order": "DESCENDING" }
+      ]
+    }
+  ],
   "fieldOverrides": []
 }

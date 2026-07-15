@@ -81,6 +81,7 @@ function calculateDimensions() {
 /////////////////////////////
 
 function resetGame() {
+  window.eliminationOrder = [];
   resizeCanvas();
 
   // Reposicionar paletas (alineadas al borde) - USANDO GROSOR UNIFICADO
@@ -404,7 +405,13 @@ function removeLife(index, side) {
   const p = paddles[index];
   if (p.lives > 0) {
     p.lives--;
-    if (p.lives === 0) closeWall(side);
+    if (p.lives === 0) {
+      closeWall(side);
+      if (!window.eliminationOrder) window.eliminationOrder = [];
+      if (!window.eliminationOrder.includes(index)) {
+        window.eliminationOrder.push(index);
+      }
+    }
   }
 
   const vivos = paddles.filter(p => p.lives > 0);
@@ -564,6 +571,10 @@ window.updateRemoteLife = function (playerId, lives) {
 
     if (oldLives > 0 && lives === 0) {
       closeWall(['top', 'left', 'bottom', 'right'][pIndex]);
+      if (!window.eliminationOrder) window.eliminationOrder = [];
+      if (!window.eliminationOrder.includes(pIndex)) {
+        window.eliminationOrder.push(pIndex);
+      }
     }
 
     // Draw lives immediately to reflect change

@@ -226,6 +226,9 @@ class NetworkManager {
 
                 // Mostrar lista inicial de listos (todos en espera)
                 this.updatePlayAgainList();
+
+                // Actualizar ELO del jugador logueado
+                this.updateLocalPlayerElo(data.winnerIndex);
             }
         });
     }
@@ -377,6 +380,41 @@ class NetworkManager {
         }
         html += '</div>';
         listDiv.innerHTML = html;
+     }
+
+    async updateLocalPlayerElo(winnerIndex) {
+        if (!window.authService) return;
+        
+        try {
+            const user = window.authService.getCurrentUser();
+            if (!user) return; // Jugador invitado, no actualizar ELO
+
+            // 1. Determinar el apodo ficticio que usó
+            const myName = document.getElementById('playerName') ? document.getElementById('playerName').value.trim() : user.name;
+
+            // 2. Determinar el índice local del jugador (0, 1, 2, 3)
+            const myIndex = this.playerId - 1;
+
+            // 3. Calcular el ELO delta según los requisitos:
+            // Ganador: +15, Segundo: +10, Tercero: -5, Cuarto: -5
+            let eloDelta = -5; // default fallback
+
+            if (myIndex === winnerIndex) {
+                eloDelta = 15; // 1° puesto (Ganador)
+            } else if (window.eliminationOrder) {
+                const myEliminationPos = window.eliminationOrder.indexOf(myIndex);
+                if (myEliminationPos === 2) {
+                    eloDelta = 10; // 2° puesto (el último eliminado antes del ganador)
+                } else {
+                    eloDelta = -5; // 3° o 4° puesto (los primeros dos eliminados)
+                }
+            }
+
+            // 4. Llamar al servicio de autenticación para realizar la actualización segura
+            await window.authService.updateEloAfterMatch(myName, eloDelta);
+        } catch (error) {
+            console.error("Error al actualizar ELO tras finalizar la partida:", error);
+        }
     }
 }
 

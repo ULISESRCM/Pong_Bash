@@ -44,4 +44,23 @@ export class AuthService {
     onAuthStateChanged(callback) {
         throw new Error("El método onAuthStateChanged(callback) debe ser implementado.");
     }
+
+    /**
+     * Actualiza el ELO del usuario tras finalizar una partida.
+     * @param {string} nickname El nombre ficticio con el que jugó esta partida.
+     * @param {number} eloDelta Los puntos ganados o perdidos (+15, +10, -5).
+     * @returns {Promise<void>}
+     */
+    async updateEloAfterMatch(nickname, eloDelta) {
+        throw new Error("El método updateEloAfterMatch(nickname, eloDelta) debe ser implementado.");
+    }
+
+    /**
+     * Obtiene el top 10 de jugadores semanal o mensual.
+     * @param {'weekly'|'monthly'} type Tipo de ranking.
+     * @returns {Promise<Array<{nickname: string, elo: number}>>}
+     */
+    async getTopPlayers(type) {
+        throw new Error("El método getTopPlayers(type) debe ser implementado.");
+    }
 }

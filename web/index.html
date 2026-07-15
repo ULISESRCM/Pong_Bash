@@ -85,9 +85,41 @@
           style="padding: 10px; font-size: 16px; flex: 1;">
         <button onclick="startOnline('join')" style="flex: 1;">Unirse</button>
       </div>
+      <br>
+      <button onclick="openLeaderboard()" style="width: 100%; margin-top: 10px; background-color: #9b59b6;">Ver Tabla de Posiciones</button>
       <br><br>
       <button onclick="document.getElementById('onlineMenu').style.display = 'none'"
-        style="background: #e74c3c;">Cerrar</button>
+        style="background: #e74c3c; width: 100%;">Cerrar</button>
+    </div>
+
+    <!-- Leaderboard View -->
+    <div id="onlineLeaderboardView" style="display: none; min-width: 320px;">
+      <h2>Tabla de Posiciones</h2>
+      
+      <!-- Selector de Tipo: Semanal / Mensual -->
+      <div style="display: flex; gap: 10px; margin: 15px 0;">
+        <button id="leaderboardWeeklyBtn" onclick="loadLeaderboard('weekly')" style="flex: 1; background: #8e44ad; font-size: 14px; padding: 8px;">Semanal</button>
+        <button id="leaderboardMonthlyBtn" onclick="loadLeaderboard('monthly')" style="flex: 1; background: rgba(255,255,255,0.1); font-size: 14px; padding: 8px;">Mensual</button>
+      </div>
+
+      <!-- Spinner o lista cargando -->
+      <div id="leaderboardLoading" style="margin: 20px 0; color: #999;">Cargando...</div>
+
+      <!-- Tabla de ranking -->
+      <table style="width: 100%; border-collapse: collapse; margin: 15px 0; text-align: left;">
+        <thead>
+          <tr style="border-bottom: 1px solid rgba(255,255,255,0.2);">
+            <th style="padding: 8px 5px;">Puesto</th>
+            <th style="padding: 8px 5px;">Jugador</th>
+            <th style="padding: 8px 5px; text-align: right;">ELO</th>
+          </tr>
+        </thead>
+        <tbody id="leaderboardBody">
+          <!-- Las filas del top 10 irán aquí -->
+        </tbody>
+      </table>
+
+      <button onclick="closeLeaderboard()" style="background: #e74c3c; width: 100%; margin-top: 15px;">Volver</button>
     </div>
 
     <!-- Lobby View -->

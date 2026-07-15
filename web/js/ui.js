@@ -172,3 +172,72 @@ window.addEventListener('DOMContentLoaded', () => {
     }
   }, 100);
 });
+
+// Controladores de la Tabla de Posiciones (Leaderboard)
+
+window.openLeaderboard = function() {
+  document.getElementById('onlineMainView').style.display = 'none';
+  document.getElementById('onlineLeaderboardView').style.display = 'block';
+  window.loadLeaderboard('weekly'); // Cargar semanal por defecto
+};
+
+window.closeLeaderboard = function() {
+  document.getElementById('onlineLeaderboardView').style.display = 'none';
+  document.getElementById('onlineMainView').style.display = 'block';
+};
+
+window.loadLeaderboard = async function(type) {
+  const weeklyBtn = document.getElementById('leaderboardWeeklyBtn');
+  const monthlyBtn = document.getElementById('leaderboardMonthlyBtn');
+  const loadingDiv = document.getElementById('leaderboardLoading');
+  const body = document.getElementById('leaderboardBody');
+
+  if (!weeklyBtn || !monthlyBtn || !loadingDiv || !body) return;
+
+  // Ajustar estilos de los botones del selector
+  if (type === 'weekly') {
+    weeklyBtn.style.background = '#8e44ad';
+    monthlyBtn.style.background = 'rgba(255,255,255,0.1)';
+  } else {
+    weeklyBtn.style.background = 'rgba(255,255,255,0.1)';
+    monthlyBtn.style.background = '#8e44ad';
+  }
+
+  loadingDiv.textContent = "Cargando...";
+  loadingDiv.style.display = 'block';
+  body.innerHTML = '';
+
+  if (!window.authService) {
+    loadingDiv.textContent = "Servicio de autenticación no listo.";
+    return;
+  }
+
+  try {
+    const players = await window.authService.getTopPlayers(type);
+    loadingDiv.style.display = 'none';
+
+    if (players.length === 0) {
+      body.innerHTML = '<tr><td colspan="3" style="text-align:center; padding: 15px; color: #999;">No hay partidas registradas esta semana/mes.</td></tr>';
+      return;
+    }
+
+    body.innerHTML = players.map((player, idx) => {
+      // Formato destacado para el podio (Top 3)
+      let rankBadge = `${idx + 1}°`;
+      if (idx === 0) rankBadge = "🥇";
+      else if (idx === 1) rankBadge = "🥈";
+      else if (idx === 2) rankBadge = "🥉";
+
+      return `
+        <tr style="border-bottom: 1px solid rgba(255,255,255,0.1);">
+          <td style="padding: 8px 5px; font-weight: bold;">${rankBadge}</td>
+          <td style="padding: 8px 5px; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${player.nickname}</td>
+          <td style="padding: 8px 5px; text-align: right; font-weight: bold; color: #f1c40f;">${player.elo}</td>
+        </tr>
+      `;
+    }).join('');
+  } catch (err) {
+    loadingDiv.textContent = "Error al cargar la tabla.";
+    console.error(err);
+  }
+};
