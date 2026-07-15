@@ -84,6 +84,7 @@ function updateUIForAuth(user) {
   const avatarImg = document.getElementById('userAvatar');
   const profileName = document.getElementById('userProfileName');
   const nameInput = document.getElementById('playerName');
+  const rankingsDiv = document.getElementById('startScreenRankings');
 
   if (user) {
     // Usuario logueado
@@ -98,6 +99,14 @@ function updateUIForAuth(user) {
       }
       nameInput.disabled = false; // Permitir que ingresen un nombre ficticio para la partida
     }
+    if (rankingsDiv) {
+      rankingsDiv.style.display = 'flex';
+      // Cargar vistas previas y listados
+      if (window.loadRankingData) {
+        window.loadRankingData('weekly');
+        window.loadRankingData('monthly');
+      }
+    }
   } else {
     // Usuario deslogueado
     if (loginBtn) loginBtn.style.display = 'flex';
@@ -106,6 +115,9 @@ function updateUIForAuth(user) {
     if (nameInput) {
       nameInput.value = '';
       nameInput.disabled = false;
+    }
+    if (rankingsDiv) {
+      rankingsDiv.style.display = 'none';
     }
   }
 }
@@ -173,71 +185,67 @@ window.addEventListener('DOMContentLoaded', () => {
   }, 100);
 });
 
-// Controladores de la Tabla de Posiciones (Leaderboard)
+// Controladores de la Tabla de Posiciones (Leaderboard Desplegables)
 
-window.openLeaderboard = function() {
-  document.getElementById('onlineMainView').style.display = 'none';
-  document.getElementById('onlineLeaderboardView').style.display = 'block';
-  window.loadLeaderboard('weekly'); // Cargar semanal por defecto
+window.toggleRankingDropdown = function(type) {
+  const content = document.getElementById(`${type}DropdownContent`);
+  if (!content) return;
+
+  const isCollapsed = content.style.display === 'none' || content.style.display === '';
+  content.style.display = isCollapsed ? 'block' : 'none';
 };
 
-window.closeLeaderboard = function() {
-  document.getElementById('onlineLeaderboardView').style.display = 'none';
-  document.getElementById('onlineMainView').style.display = 'block';
-};
+window.loadRankingData = async function(type) {
+  const leaderPreview = document.getElementById(`${type}LeaderPreview`);
+  const userPreview = document.getElementById(`${type}UserPreview`);
+  const tableBody = document.getElementById(`${type}LeaderboardBody`);
 
-window.loadLeaderboard = async function(type) {
-  const weeklyBtn = document.getElementById('leaderboardWeeklyBtn');
-  const monthlyBtn = document.getElementById('leaderboardMonthlyBtn');
-  const loadingDiv = document.getElementById('leaderboardLoading');
-  const body = document.getElementById('leaderboardBody');
-
-  if (!weeklyBtn || !monthlyBtn || !loadingDiv || !body) return;
-
-  // Ajustar estilos de los botones del selector
-  if (type === 'weekly') {
-    weeklyBtn.style.background = '#8e44ad';
-    monthlyBtn.style.background = 'rgba(255,255,255,0.1)';
-  } else {
-    weeklyBtn.style.background = 'rgba(255,255,255,0.1)';
-    monthlyBtn.style.background = '#8e44ad';
-  }
-
-  loadingDiv.textContent = "Cargando...";
-  loadingDiv.style.display = 'block';
-  body.innerHTML = '';
+  if (!leaderPreview || !userPreview || !tableBody) return;
 
   if (!window.authService) {
-    loadingDiv.textContent = "Servicio de autenticación no listo.";
+    leaderPreview.textContent = "🥇 Servicio no listo";
     return;
   }
 
   try {
+    // 1. Obtener Top Players (para el primer puesto y el ranking)
     const players = await window.authService.getTopPlayers(type);
-    loadingDiv.style.display = 'none';
+    
+    if (players.length > 0) {
+      const leader = players[0];
+      leaderPreview.textContent = `🥇 #1 ${leader.nickname} (${leader.elo} pts)`;
 
-    if (players.length === 0) {
-      body.innerHTML = '<tr><td colspan="3" style="text-align:center; padding: 15px; color: #999;">No hay partidas registradas esta semana/mes.</td></tr>';
-      return;
+      // Llenar listado Top 10
+      tableBody.innerHTML = players.map((player, idx) => {
+        let rankBadge = `${idx + 1}°`;
+        if (idx === 0) rankBadge = "🥇";
+        else if (idx === 1) rankBadge = "🥈";
+        else if (idx === 2) rankBadge = "🥉";
+
+        return `
+          <tr style="border-bottom: 1px solid rgba(255,255,255,0.08); height: 32px;">
+            <td style="padding: 4px 0; font-weight: bold;">${rankBadge}</td>
+            <td style="padding: 4px 0; max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${player.nickname}</td>
+            <td style="padding: 4px 0; text-align: right; font-weight: bold; color: #f1c40f;">${player.elo} pts</td>
+          </tr>
+        `;
+      }).join('');
+    } else {
+      leaderPreview.textContent = "🥇 #1 --";
+      tableBody.innerHTML = '<tr><td colspan="3" style="text-align:center; padding: 10px; color: #999;">Sin registros</td></tr>';
     }
 
-    body.innerHTML = players.map((player, idx) => {
-      // Formato destacado para el podio (Top 3)
-      let rankBadge = `${idx + 1}°`;
-      if (idx === 0) rankBadge = "🥇";
-      else if (idx === 1) rankBadge = "🥈";
-      else if (idx === 2) rankBadge = "🥉";
+    // 2. Obtener el puesto del usuario logueado en este lapso
+    const userRankInfo = await window.authService.getUserRank(type);
+    if (userRankInfo && userRankInfo.rank !== undefined) {
+      const rankText = userRankInfo.rank !== "-" ? `#${userRankInfo.rank}` : "#--";
+      userPreview.textContent = `👤 ${rankText} Vos (${userRankInfo.elo} pts)`;
+    } else {
+      userPreview.textContent = `👤 #-- Vos --`;
+    }
 
-      return `
-        <tr style="border-bottom: 1px solid rgba(255,255,255,0.1);">
-          <td style="padding: 8px 5px; font-weight: bold;">${rankBadge}</td>
-          <td style="padding: 8px 5px; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${player.nickname}</td>
-          <td style="padding: 8px 5px; text-align: right; font-weight: bold; color: #f1c40f;">${player.elo}</td>
-        </tr>
-      `;
-    }).join('');
-  } catch (err) {
-    loadingDiv.textContent = "Error al cargar la tabla.";
-    console.error(err);
+  } catch (error) {
+    console.error(`Error al cargar datos del ranking ${type}:`, error);
+    leaderPreview.textContent = "🥇 Error al cargar";
   }
 };

@@ -45,6 +45,71 @@
       </button>
       <button id="playOnlineBtn" onclick="toggleOnlineMenu()"
         style="background-color: #4a90e2; width: 100%; margin-top: 10px; display: none;">Jugar Online</button>
+
+      <!-- Rankings Desplegables -->
+      <div id="startScreenRankings" style="width: 100%; margin-top: 20px; display: none; flex-direction: column; gap: 15px;">
+        
+        <!-- Ranking Semanal -->
+        <div class="ranking-card" style="width: 100%; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 16px; padding: 15px; text-align: left; position: relative;">
+          <div onclick="toggleRankingDropdown('weekly')" style="cursor: pointer; display: flex; justify-content: space-between; align-items: flex-start;">
+            <div style="flex: 1;">
+              <h3 style="font-size: 16px; font-weight: bold; margin-bottom: 8px;">Ranking Semanal</h3>
+              <!-- Preview Pill -->
+              <div style="background: rgba(255,255,255,0.04); border-radius: 8px; padding: 8px 12px; display: flex; flex-direction: column; gap: 4px; font-size: 13px;">
+                <div id="weeklyLeaderPreview" style="color: #ccc; font-weight: 500;">🥇 #1 --</div>
+                <div id="weeklyUserPreview" style="color: #4da6ff; font-weight: bold;">👤 #-- Vos --</div>
+              </div>
+            </div>
+            <div style="font-size: 30px; margin-left: 10px;">🏆</div>
+          </div>
+          <!-- Full List (Dropdown Content) -->
+          <div id="weeklyDropdownContent" style="display: none; margin-top: 15px; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 10px;">
+            <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+              <thead>
+                <tr style="border-bottom: 1px solid rgba(255,255,255,0.15); color: #999;">
+                  <th style="padding: 4px 0; text-align: left;">Puesto</th>
+                  <th style="padding: 4px 0; text-align: left;">Jugador</th>
+                  <th style="padding: 4px 0; text-align: right;">ELO</th>
+                </tr>
+              </thead>
+              <tbody id="weeklyLeaderboardBody">
+                <!-- Top 10 irán aquí -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Ranking Mensual -->
+        <div class="ranking-card" style="width: 100%; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 16px; padding: 15px; text-align: left; position: relative;">
+          <div onclick="toggleRankingDropdown('monthly')" style="cursor: pointer; display: flex; justify-content: space-between; align-items: flex-start;">
+            <div style="flex: 1;">
+              <h3 style="font-size: 16px; font-weight: bold; margin-bottom: 8px;">Ranking Mensual</h3>
+              <!-- Preview Pill -->
+              <div style="background: rgba(255,255,255,0.04); border-radius: 8px; padding: 8px 12px; display: flex; flex-direction: column; gap: 4px; font-size: 13px;">
+                <div id="monthlyLeaderPreview" style="color: #ccc; font-weight: 500;">🥇 #1 --</div>
+                <div id="monthlyUserPreview" style="color: #4da6ff; font-weight: bold;">👤 #-- Vos --</div>
+              </div>
+            </div>
+            <div style="font-size: 30px; margin-left: 10px;">🏆</div>
+          </div>
+          <!-- Full List (Dropdown Content) -->
+          <div id="monthlyDropdownContent" style="display: none; margin-top: 15px; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 10px;">
+            <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+              <thead>
+                <tr style="border-bottom: 1px solid rgba(255,255,255,0.15); color: #999;">
+                  <th style="padding: 4px 0; text-align: left;">Puesto</th>
+                  <th style="padding: 4px 0; text-align: left;">Jugador</th>
+                  <th style="padding: 4px 0; text-align: right;">ELO</th>
+                </tr>
+              </thead>
+              <tbody id="monthlyLeaderboardBody">
+                <!-- Top 10 irán aquí -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
     </div>
   </div>
 
@@ -85,41 +150,9 @@
           style="padding: 10px; font-size: 16px; flex: 1;">
         <button onclick="startOnline('join')" style="flex: 1;">Unirse</button>
       </div>
-      <br>
-      <button onclick="openLeaderboard()" style="width: 100%; margin-top: 10px; background-color: #9b59b6;">Ver Tabla de Posiciones</button>
       <br><br>
       <button onclick="document.getElementById('onlineMenu').style.display = 'none'"
         style="background: #e74c3c; width: 100%;">Cerrar</button>
-    </div>
-
-    <!-- Leaderboard View -->
-    <div id="onlineLeaderboardView" style="display: none; min-width: 320px;">
-      <h2>Tabla de Posiciones</h2>
-      
-      <!-- Selector de Tipo: Semanal / Mensual -->
-      <div style="display: flex; gap: 10px; margin: 15px 0;">
-        <button id="leaderboardWeeklyBtn" onclick="loadLeaderboard('weekly')" style="flex: 1; background: #8e44ad; font-size: 14px; padding: 8px;">Semanal</button>
-        <button id="leaderboardMonthlyBtn" onclick="loadLeaderboard('monthly')" style="flex: 1; background: rgba(255,255,255,0.1); font-size: 14px; padding: 8px;">Mensual</button>
-      </div>
-
-      <!-- Spinner o lista cargando -->
-      <div id="leaderboardLoading" style="margin: 20px 0; color: #999;">Cargando...</div>
-
-      <!-- Tabla de ranking -->
-      <table style="width: 100%; border-collapse: collapse; margin: 15px 0; text-align: left;">
-        <thead>
-          <tr style="border-bottom: 1px solid rgba(255,255,255,0.2);">
-            <th style="padding: 8px 5px;">Puesto</th>
-            <th style="padding: 8px 5px;">Jugador</th>
-            <th style="padding: 8px 5px; text-align: right;">ELO</th>
-          </tr>
-        </thead>
-        <tbody id="leaderboardBody">
-          <!-- Las filas del top 10 irán aquí -->
-        </tbody>
-      </table>
-
-      <button onclick="closeLeaderboard()" style="background: #e74c3c; width: 100%; margin-top: 15px;">Volver</button>
     </div>
 
     <!-- Lobby View -->

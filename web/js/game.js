@@ -83,6 +83,9 @@ function calculateDimensions() {
 function resetGame() {
   window.eliminationOrder = [];
   resizeCanvas();
+  if (canvas) canvas.style.display = 'block';
+  const lb = document.getElementById('livesBar');
+  if (lb) lb.style.display = 'flex';
 
   // Reposicionar paletas (alineadas al borde) - USANDO GROSOR UNIFICADO
   paddles[0].x = cornerWallLong;
@@ -668,8 +671,16 @@ window.stopGame = function() {
   window.countdownActive = false;
   window.countdownVal = null;
   
-  // Limpiar el canvas para que no se vea la pelota en el fondo
+  // Limpiar y ocultar el canvas
   if (ctx && canvas) {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+    canvas.style.display = 'none';
   }
+  const lb = document.getElementById('livesBar');
+  if (lb) lb.style.display = 'none';
 };
+
+// Ocultar por defecto al cargar
+if (canvas) canvas.style.display = 'none';
+const lbInitial = document.getElementById('livesBar');
+if (lbInitial) lbInitial.style.display = 'none';

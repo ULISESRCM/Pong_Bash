@@ -212,7 +212,7 @@ class NetworkManager {
         });
 
         this.socket.on('game_finished', (data) => {
-            if (window.gameOver !== undefined) window.gameOver = true;
+            if (window.stopGame) window.stopGame();
 
             // Limpiar estados de volver a jugar
             this.playAgainStates = null;

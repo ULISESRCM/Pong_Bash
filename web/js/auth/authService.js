@@ -63,4 +63,13 @@ export class AuthService {
     async getTopPlayers(type) {
         throw new Error("El método getTopPlayers(type) debe ser implementado.");
     }
+
+    /**
+     * Obtiene la posición en el ranking del usuario actual.
+     * @param {'weekly'|'monthly'} type Tipo de ranking.
+     * @returns {Promise<{rank: number|string, elo: number}>}
+     */
+    async getUserRank(type) {
+        throw new Error("El método getUserRank(type) debe ser implementado.");
+    }
 }

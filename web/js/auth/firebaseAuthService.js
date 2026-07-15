@@ -230,6 +230,68 @@ export class FirebaseAuthService extends AuthService {
     }
 
     /**
+     * Obtiene la posición en el ranking del usuario actual de forma eficiente.
+     */
+    async getUserRank(type) {
+        try {
+            const currentUser = this.auth.currentUser;
+            if (!currentUser) return { rank: "-", elo: 100 };
+
+            const { query, collection, where, getCountFromServer } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+
+            const userDocRef = doc(this.db, "users", currentUser.uid);
+            const userSnapshot = await getDoc(userDocRef);
+
+            const currentWeek = getWeeklyKey();
+            const currentMonth = getMonthlyKey();
+
+            let myElo = 100;
+            let myKey = "";
+            const expectedKey = type === 'weekly' ? currentWeek : currentMonth;
+
+            if (userSnapshot.exists()) {
+                const data = userSnapshot.data();
+                if (type === 'weekly') {
+                    myElo = data.eloWeekly !== undefined ? data.eloWeekly : 100;
+                    myKey = data.weeklyKey;
+                } else {
+                    myElo = data.eloMonthly !== undefined ? data.eloMonthly : 100;
+                    myKey = data.monthlyKey;
+                }
+                if (myKey !== expectedKey) {
+                    myElo = 100; // Reset lazy
+                }
+            }
+
+            // Contar cuántos usuarios tienen un ELO mayor en este lapso
+            const q = query(
+                collection(this.db, "users"),
+                where(type === 'weekly' ? "weeklyKey" : "monthlyKey", "==", expectedKey),
+                where(type === 'weekly' ? "eloWeekly" : "eloMonthly", ">", myElo)
+            );
+
+            let rank = "-";
+            try {
+                const countSnapshot = await getCountFromServer(q);
+                rank = countSnapshot.data().count + 1;
+            } catch (indexError) {
+                console.warn("Falta índice compuesto para contar rango de forma directa.", indexError);
+                // Fallback: si no hay índice compuesto, aproximamos usando la lista top 10
+                const topPlayers = await this.getTopPlayers(type);
+                const idx = topPlayers.findIndex(p => p.elo === myElo);
+                if (idx !== -1) {
+                    rank = idx + 1;
+                }
+            }
+
+            return { rank, elo: myElo };
+        } catch (error) {
+            console.error(`Error al obtener rango del usuario (${type}):`, error);
+            return { rank: "-", elo: 100 };
+        }
+    }
+
+    /**
      * Método helper privado para transformar el objeto usuario nativo de Firebase
      * a nuestra estructura limpia independiente (Modelo de Dominio).
      * 
