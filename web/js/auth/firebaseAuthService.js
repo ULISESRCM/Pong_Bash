@@ -43,7 +43,7 @@ export class FirebaseAuthService extends AuthService {
             const userSnapshot = await getDoc(userDocRef);
 
             if (!userSnapshot.exists()) {
-                // 2. Si no existe, crear el documento con datos iniciales (ELO inicia en 100)
+                // 2. Si no existe, crear el documento con datos iniciales (inicia en 100 puntos)
                 await setDoc(userDocRef, {
                     uid: user.uid,
                     displayName: user.displayName || "Sin nombre",
@@ -55,6 +55,7 @@ export class FirebaseAuthService extends AuthService {
                     eloMonthly: 100,
                     monthlyKey: getMonthlyKey(),
                     gamesPlayed: 0,
+                    gamesWon: 0,
                     lastNickname: user.displayName || "Sin nombre",
                     createdAt: new Date()
                 });
@@ -106,7 +107,7 @@ export class FirebaseAuthService extends AuthService {
     }
 
     /**
-     * Actualiza el ELO (Global, Semanal y Mensual) en Firestore tras finalizar una partida.
+     * Actualiza los puntos (Global, Semanal y Mensual) en Firestore tras finalizar una partida.
      */
     async updateEloAfterMatch(nickname, eloDelta) {
         try {
@@ -123,6 +124,7 @@ export class FirebaseAuthService extends AuthService {
             let eloWeekly = 100;
             let eloMonthly = 100;
             let gamesPlayed = 0;
+            let gamesWon = 0;
 
             if (userSnapshot.exists()) {
                 const data = userSnapshot.data();
@@ -135,12 +137,17 @@ export class FirebaseAuthService extends AuthService {
                 eloMonthly = (data.monthlyKey === currentMonth) ? (data.eloMonthly !== undefined ? data.eloMonthly : 100) : 100;
                 
                 gamesPlayed = data.gamesPlayed !== undefined ? data.gamesPlayed : 0;
+                gamesWon = data.gamesWon !== undefined ? data.gamesWon : 0;
             }
 
             // Calcular nuevos valores asegurando que no queden en negativo
             const newElo = Math.max(0, elo + eloDelta);
             const newEloWeekly = Math.max(0, eloWeekly + eloDelta);
             const newEloMonthly = Math.max(0, eloMonthly + eloDelta);
+            
+            // Incrementar juegos ganados si el delta es +15 (primer puesto)
+            const isWinner = (Number(eloDelta) === 15);
+            const newGamesWon = isWinner ? gamesWon + 1 : gamesWon;
 
             await setDoc(userDocRef, {
                 elo: newElo,
@@ -149,6 +156,7 @@ export class FirebaseAuthService extends AuthService {
                 eloMonthly: newEloMonthly,
                 monthlyKey: currentMonth,
                 gamesPlayed: gamesPlayed + 1,
+                gamesWon: newGamesWon,
                 lastNickname: nickname || "Sin nombre",
                 uid: currentUser.uid,
                 displayName: currentUser.displayName || "Sin nombre",
@@ -157,9 +165,9 @@ export class FirebaseAuthService extends AuthService {
                 updatedAt: new Date()
             }, { merge: true });
 
-            console.log(`ELO actualizado para ${currentUser.uid}: Delta ${eloDelta}. Nuevo ELO: Global ${newElo}, Semanal ${newEloWeekly}, Mensual ${newEloMonthly}. Apodo: ${nickname}`);
+            console.log(`Puntos actualizados para ${currentUser.uid}: Delta ${eloDelta}. Nuevos puntos: Global ${newElo}, Semanal ${newEloWeekly}, Mensual ${newEloMonthly}. Apodo: ${nickname}, Ganadas: ${newGamesWon}/${gamesPlayed + 1}`);
         } catch (error) {
-            console.error("Error al actualizar ELO en Firestore:", error);
+            console.error("Error al actualizar puntos en Firestore:", error);
         }
     }
 
@@ -196,7 +204,7 @@ export class FirebaseAuthService extends AuthService {
                 querySnapshot = await getDocs(q);
             } catch (indexError) {
                 console.warn("Falta índice compuesto en Firestore. Usando fallback de consulta simple y filtrado en memoria.", indexError);
-                // Fallback: Consulta simple ordenada por ELO y filtrado en memoria
+                // Fallback: Consulta simple ordenada por puntos y filtrado en memoria
                 const fallbackQ = query(
                     collection(this.db, "users"),
                     orderBy(type === 'weekly' ? "eloWeekly" : "eloMonthly", "desc"),
@@ -211,17 +219,24 @@ export class FirebaseAuthService extends AuthService {
                 const key = type === 'weekly' ? data.weeklyKey : data.monthlyKey;
                 const expectedKey = type === 'weekly' ? currentWeek : currentMonth;
                 
-                // Solo incluimos si pertenece al lapso de tiempo activo, de lo contrario su ELO actual es 100
+                // Solo incluimos si pertenece al lapso de tiempo activo, de lo contrario sus puntos actuales son 100
                 const activeElo = (key === expectedKey) ? (type === 'weekly' ? data.eloWeekly : data.eloMonthly) : 100;
                 
                 results.push({
                     nickname: data.lastNickname || data.displayName || "Sin nombre",
-                    elo: activeElo !== undefined ? activeElo : 100
+                    elo: activeElo !== undefined ? activeElo : 100,
+                    gamesPlayed: data.gamesPlayed !== undefined ? data.gamesPlayed : 0,
+                    gamesWon: data.gamesWon !== undefined ? data.gamesWon : 0,
+                    updatedAt: data.updatedAt ? data.updatedAt.toDate() : new Date(0)
                 });
             });
 
-            // Ordenar en memoria y truncar a 10 resultados
-            results.sort((a, b) => b.elo - a.elo);
+            // Ordenar en memoria: primero por puntos desc, luego por partidas jugadas asc (Alternativa 2), luego por fecha desc
+            results.sort((a, b) => {
+                if (b.elo !== a.elo) return b.elo - a.elo;
+                if (a.gamesPlayed !== b.gamesPlayed) return a.gamesPlayed - b.gamesPlayed;
+                return b.updatedAt - a.updatedAt;
+            });
             return results.slice(0, 10);
         } catch (error) {
             console.error(`Error al obtener ranking ${type}:`, error);
@@ -235,7 +250,7 @@ export class FirebaseAuthService extends AuthService {
     async getUserRank(type) {
         try {
             const currentUser = this.auth.currentUser;
-            if (!currentUser) return { rank: "-", elo: 100 };
+            if (!currentUser) return { rank: "-", elo: 100, gamesPlayed: 0, gamesWon: 0 };
 
             const { query, collection, where, getCountFromServer } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
 
@@ -247,6 +262,8 @@ export class FirebaseAuthService extends AuthService {
 
             let myElo = 100;
             let myKey = "";
+            let gamesPlayed = 0;
+            let gamesWon = 0;
             const expectedKey = type === 'weekly' ? currentWeek : currentMonth;
 
             if (userSnapshot.exists()) {
@@ -261,33 +278,39 @@ export class FirebaseAuthService extends AuthService {
                 if (myKey !== expectedKey) {
                     myElo = 100; // Reset lazy
                 }
+                gamesPlayed = data.gamesPlayed !== undefined ? data.gamesPlayed : 0;
+                gamesWon = data.gamesWon !== undefined ? data.gamesWon : 0;
             }
 
-            // Contar cuántos usuarios tienen un ELO mayor en este lapso
-            const q = query(
-                collection(this.db, "users"),
-                where(type === 'weekly' ? "weeklyKey" : "monthlyKey", "==", expectedKey),
-                where(type === 'weekly' ? "eloWeekly" : "eloMonthly", ">", myElo)
-            );
+            // Buscar en el top de jugadores ya ordenados (con desempate por fecha)
+            const topPlayers = await this.getTopPlayers(type);
+            const myNickname = userSnapshot.exists() ? (userSnapshot.data().lastNickname || userSnapshot.data().displayName) : "";
 
             let rank = "-";
-            try {
-                const countSnapshot = await getCountFromServer(q);
-                rank = countSnapshot.data().count + 1;
-            } catch (indexError) {
-                console.warn("Falta índice compuesto para contar rango de forma directa.", indexError);
-                // Fallback: si no hay índice compuesto, aproximamos usando la lista top 10
-                const topPlayers = await this.getTopPlayers(type);
-                const idx = topPlayers.findIndex(p => p.elo === myElo);
-                if (idx !== -1) {
-                    rank = idx + 1;
+            const idx = topPlayers.findIndex(p => p.nickname === myNickname && p.elo === myElo);
+            
+            if (idx !== -1) {
+                rank = idx + 1;
+            } else {
+                // Fallback: si no está en el Top 10, aproximamos por conteo
+                const q = query(
+                    collection(this.db, "users"),
+                    where(type === 'weekly' ? "weeklyKey" : "monthlyKey", "==", expectedKey),
+                    where(type === 'weekly' ? "eloWeekly" : "eloMonthly", ">", myElo)
+                );
+                try {
+                    const countSnapshot = await getCountFromServer(q);
+                    rank = countSnapshot.data().count + 1;
+                } catch (indexError) {
+                    console.warn("Error en conteo aproximado de rango:", indexError);
+                    rank = "-";
                 }
             }
 
-            return { rank, elo: myElo };
+            return { rank, elo: myElo, gamesPlayed, gamesWon };
         } catch (error) {
             console.error(`Error al obtener rango del usuario (${type}):`, error);
-            return { rank: "-", elo: 100 };
+            return { rank: "-", elo: 100, gamesPlayed: 0, gamesWon: 0 };
         }
     }
 

@@ -94,10 +94,8 @@ function updateUIForAuth(user) {
     if (avatarImg) avatarImg.src = user.photoURL || 'https://www.gravatar.com/avatar/?d=mp';
     if (profileName) profileName.textContent = user.name;
     if (nameInput) {
-      if (!nameInput.value) {
-        nameInput.value = user.name || "";
-      }
-      nameInput.disabled = false; // Permitir que ingresen un nombre ficticio para la partida
+      // Dejamos que el usuario introduzca un apodo manual para proteger su privacidad
+      nameInput.disabled = false;
     }
     if (rankingsDiv) {
       rankingsDiv.style.display = 'flex';
@@ -117,7 +115,12 @@ function updateUIForAuth(user) {
       nameInput.disabled = false;
     }
     if (rankingsDiv) {
-      rankingsDiv.style.display = 'none';
+      rankingsDiv.style.display = 'flex';
+      // Cargar vistas previas y listados públicos
+      if (window.loadRankingData) {
+        window.loadRankingData('weekly');
+        window.loadRankingData('monthly');
+      }
     }
   }
 }
@@ -125,19 +128,16 @@ function updateUIForAuth(user) {
 // Handler de inicio de sesión con Google
 window.loginWithGoogle = async function() {
   if (!window.authService) {
-    alert("El servicio de autenticación no está listo aún.");
+    if (window.showAlert) window.showAlert("Servicio no listo", "El servicio de autenticación no está listo aún.", "error");
+    else alert("El servicio de autenticación no está listo aún.");
     return;
   }
   try {
     // loginWithGoogle() ahora también verifica/crea el registro en Firestore
     await window.authService.loginWithGoogle();
-    
-    // Abrir automáticamente el lobby online tras loguearse exitosamente
-    if (window.toggleOnlineMenu) {
-      window.toggleOnlineMenu();
-    }
   } catch (error) {
-    alert(`Error al iniciar sesión: ${error.message}`);
+    if (window.showAlert) window.showAlert("Error de Inicio de Sesión", error.message, "error");
+    else alert(`Error al iniciar sesión: ${error.message}`);
   }
 };
 
@@ -150,7 +150,8 @@ window.logout = async function(e) {
     if (dropdown) dropdown.style.display = 'none';
     await window.authService.logout();
   } catch (error) {
-    alert(`Error al cerrar sesión: ${error.message}`);
+    if (window.showAlert) window.showAlert("Error de Cierre de Sesión", error.message, "error");
+    else alert(`Error al cerrar sesión: ${error.message}`);
   }
 };
 
@@ -213,7 +214,8 @@ window.loadRankingData = async function(type) {
     
     if (players.length > 0) {
       const leader = players[0];
-      leaderPreview.textContent = `🥇 #1 ${leader.nickname} (${leader.elo} pts)`;
+      // Si el usuario no es el líder, solo se ve el nombre
+      leaderPreview.textContent = `🥇 #1 ${leader.nickname}`;
 
       // Llenar listado Top 10
       tableBody.innerHTML = players.map((player, idx) => {
@@ -222,26 +224,50 @@ window.loadRankingData = async function(type) {
         else if (idx === 1) rankBadge = "🥈";
         else if (idx === 2) rankBadge = "🥉";
 
+        const wr = player.gamesPlayed > 0 ? Math.round((player.gamesWon / player.gamesPlayed) * 100) : 0;
+
         return `
           <tr style="border-bottom: 1px solid rgba(255,255,255,0.08); height: 32px;">
             <td style="padding: 4px 0; font-weight: bold;">${rankBadge}</td>
-            <td style="padding: 4px 0; max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${player.nickname}</td>
+            <td style="padding: 4px 0; max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${player.nickname}</td>
+            <td style="padding: 4px 0; text-align: center; color: #aaa;">${wr}%</td>
             <td style="padding: 4px 0; text-align: right; font-weight: bold; color: #f1c40f;">${player.elo} pts</td>
           </tr>
         `;
       }).join('');
     } else {
       leaderPreview.textContent = "🥇 #1 --";
-      tableBody.innerHTML = '<tr><td colspan="3" style="text-align:center; padding: 10px; color: #999;">Sin registros</td></tr>';
+      tableBody.innerHTML = '<tr><td colspan="4" style="text-align:center; padding: 10px; color: #999;">Sin registros</td></tr>';
     }
 
     // 2. Obtener el puesto del usuario logueado en este lapso
-    const userRankInfo = await window.authService.getUserRank(type);
-    if (userRankInfo && userRankInfo.rank !== undefined) {
-      const rankText = userRankInfo.rank !== "-" ? `#${userRankInfo.rank}` : "#--";
-      userPreview.textContent = `👤 ${rankText} Vos (${userRankInfo.elo} pts)`;
+    const currentUser = window.authService.getCurrentUser();
+    if (currentUser) {
+      const userRankInfo = await window.authService.getUserRank(type);
+      if (userRankInfo && userRankInfo.rank !== undefined) {
+        const rankText = userRankInfo.rank !== "-" ? `#${userRankInfo.rank}` : "#--";
+        
+        if (userRankInfo.rank === 1) {
+          // Si es el puesto #1, renombramos el líder a "Vos" y mostramos sus puntos
+          leaderPreview.textContent = `🥇 #1 Vos (${userRankInfo.elo} pts)`;
+          userPreview.style.display = 'none';
+        } else {
+          // Si no es el puesto #1, mostramos ambas líneas (el líder sin puntos y el usuario con puntos)
+          userPreview.style.display = 'block';
+          userPreview.textContent = `👤 ${rankText} Vos (${userRankInfo.elo} pts)`;
+        }
+
+        // Actualizar el Win Rate en el dropdown del perfil del usuario
+        const myWr = userRankInfo.gamesPlayed > 0 ? Math.round((userRankInfo.gamesWon / userRankInfo.gamesPlayed) * 100) : 0;
+        const wrEl = document.getElementById('userProfileWinRate');
+        if (wrEl) wrEl.textContent = `Win Rate: ${myWr}%`;
+      } else {
+        userPreview.style.display = 'block';
+        userPreview.textContent = `👤 #-- Vos --`;
+      }
     } else {
-      userPreview.textContent = `👤 #-- Vos --`;
+      userPreview.style.display = 'block';
+      userPreview.textContent = `👤 Logueate para ver tu puesto`;
     }
 
   } catch (error) {
