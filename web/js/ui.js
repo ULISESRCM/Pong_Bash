@@ -75,3 +75,100 @@ function drawLives() {
     return `<span style="color:${p.color};margin:0 ${spacing}px;">❤ ${playerName}: ${p.lives > 0 ? p.lives : 0}</span>`;
   }).join('');
 }
+
+// Auxiliar para actualizar los elementos de la interfaz de acuerdo al estado de login
+function updateUIForAuth(user) {
+  const loginBtn = document.getElementById('loginBtn');
+  const playOnlineBtn = document.getElementById('playOnlineBtn');
+  const profileCard = document.getElementById('userProfileCard');
+  const avatarImg = document.getElementById('userAvatar');
+  const profileName = document.getElementById('userProfileName');
+  const nameInput = document.getElementById('playerName');
+
+  if (user) {
+    // Usuario logueado
+    if (loginBtn) loginBtn.style.display = 'none';
+    if (playOnlineBtn) playOnlineBtn.style.display = 'block';
+    if (profileCard) profileCard.style.display = 'flex';
+    if (avatarImg) avatarImg.src = user.photoURL || 'https://www.gravatar.com/avatar/?d=mp';
+    if (profileName) profileName.textContent = user.name;
+    if (nameInput) {
+      if (!nameInput.value) {
+        nameInput.value = user.name || "";
+      }
+      nameInput.disabled = false; // Permitir que ingresen un nombre ficticio para la partida
+    }
+  } else {
+    // Usuario deslogueado
+    if (loginBtn) loginBtn.style.display = 'flex';
+    if (playOnlineBtn) playOnlineBtn.style.display = 'none';
+    if (profileCard) profileCard.style.display = 'none';
+    if (nameInput) {
+      nameInput.value = '';
+      nameInput.disabled = false;
+    }
+  }
+}
+
+// Handler de inicio de sesión con Google
+window.loginWithGoogle = async function() {
+  if (!window.authService) {
+    alert("El servicio de autenticación no está listo aún.");
+    return;
+  }
+  try {
+    // loginWithGoogle() ahora también verifica/crea el registro en Firestore
+    await window.authService.loginWithGoogle();
+    
+    // Abrir automáticamente el lobby online tras loguearse exitosamente
+    if (window.toggleOnlineMenu) {
+      window.toggleOnlineMenu();
+    }
+  } catch (error) {
+    alert(`Error al iniciar sesión: ${error.message}`);
+  }
+};
+
+// Handler de cierre de sesión
+window.logout = async function(e) {
+  if (e) e.preventDefault();
+  if (!window.authService) return;
+  try {
+    const dropdown = document.getElementById('userDropdownMenu');
+    if (dropdown) dropdown.style.display = 'none';
+    await window.authService.logout();
+  } catch (error) {
+    alert(`Error al cerrar sesión: ${error.message}`);
+  }
+};
+
+// Toggle del menú desplegable del usuario
+window.toggleUserDropdown = function(e) {
+  if (e) e.stopPropagation();
+  const menu = document.getElementById('userDropdownMenu');
+  if (menu) {
+    menu.style.display = menu.style.display === 'block' ? 'none' : 'block';
+  }
+};
+
+// Cerrar el menú si hacen clic fuera del dropdown
+window.addEventListener('click', () => {
+  const menu = document.getElementById('userDropdownMenu');
+  if (menu) {
+    menu.style.display = 'none';
+  }
+});
+
+// Escuchar cambios de sesión al cargar la página para persistencia automática
+window.addEventListener('DOMContentLoaded', () => {
+  // Como authConfig.js se carga como módulo y se inicializa asíncronamente,
+  // verificamos periódicamente si window.authService ya está disponible para escuchar.
+  const interval = setInterval(() => {
+    if (window.authService) {
+      clearInterval(interval);
+      window.authService.onAuthStateChanged((user) => {
+        updateUIForAuth(user);
+      });
+    }
+  }, 100);
+});
