@@ -249,77 +249,70 @@ function updateBall() {
     return;
   }
 
-  // Movimiento
-  ball.x += ball.dx;
-  ball.y += ball.dy;
+  // Movimiento con subdivisión para prevenir tunneling (Solución D)
+  const ballSpeedMag = Math.sqrt(ball.dx * ball.dx + ball.dy * ball.dy);
+  const subSteps = Math.max(1, Math.ceil(ballSpeedMag / ball.r));
+  const stepDx = ball.dx / subSteps;
+  const stepDy = ball.dy / subSteps;
 
-  // 1. Rebote en Paredes de Esquina (Corner Walls)
-  cornerWalls.forEach(w => {
-    if (checkRectCollision(ball, w)) {
-      resolveWallCollision(ball, w);
+  for (let step = 0; step < subSteps; step++) {
+    ball.x += stepDx;
+    ball.y += stepDy;
+
+    // 1. Rebote en Paredes de Esquina (Corner Walls)
+    for (let wi = 0; wi < cornerWalls.length; wi++) {
+      if (checkRectCollision(ball, cornerWalls[wi])) {
+        resolveWallCollision(ball, cornerWalls[wi]);
+      }
     }
-  });
+  }
 
-  // 2. Rebote en Paletas (Paddles)
+  // 2. Rebote en Paletas (Paddles) — Solución B: dirección por posición, no por velocidad
   paddles.forEach(p => {
     if (p.lives > 0 && checkRectCollision(ball, p)) {
-      // Determinar punto de impacto relativo (-1 a 1)
       let collidePoint = 0;
-      let isSmash = false; // Flag para detectar si hubo "empuje"
+      const isSmash = Math.abs(p.dx) > 0;
+      const margin = ball.r * 0.15; // Solución C: separación proporcional
 
       // Paletas horizontales (Top/Bottom)
       if (p.w > p.h) {
         const center = p.x + p.w / 2;
-        collidePoint = (ball.x - center) / (p.w / 2);
+        collidePoint = Math.max(-1, Math.min(1, (ball.x - center) / (p.w / 2)));
 
-        let directionY = (ball.dy > 0) ? -1 : 1;
-
-        // DETECCIÓN DE DASH / SMASH
-        // Si la paleta se mueve muy rápido (usamos un umbral)
-        // Y si el movimiento lateral coincide con la dirección horizontal de la pelota (opcional)
-        // O simplemente si se está moviendo al momento del impacto, le da un boost.
-        // Simplificación: Si |p.dx| > 0, es un golpe con movimiento.
-        if (Math.abs(p.dx) > 0) {
-          isSmash = true;
-        }
+        // Solución B: dirección determinada por posición relativa, no por velocidad
+        const paddleMidY = p.y + p.h / 2;
+        const directionY = (ball.y < paddleMidY) ? -1 : 1;
 
         const angleRad = collidePoint * (Math.PI / 3);
-
-        // Velocidad base del rebote
         let speed = Math.sqrt(ball.dx * ball.dx + ball.dy * ball.dy);
 
-        // APLICAR BOOST SI ES SMASH
+        // SMASH: boost de velocidad si la paleta estaba en movimiento
         if (isSmash) {
-          speed *= 1.5; // 50% más rápido!
-          ball.color = p.color; // La pelota toma el color del jugador
+          speed *= 1.5;
+          ball.color = p.color;
         } else {
-          speed *= 1.05; // Aceleración normal
-          ball.color = 'white'; // Color normal
+          speed *= 1.05;
+          ball.color = 'white';
         }
 
-        // Limitar velocidad máxima para que no rompa la física
         const maxSpeed = canvas.width * 0.04;
         speed = Math.min(speed, maxSpeed);
 
         ball.dx = speed * Math.sin(angleRad);
         ball.dy = directionY * speed * Math.cos(angleRad);
 
-        // Ajuste para evitar que se pegue: mover la pelota fuera de la paleta
-        if (directionY === 1) ball.y = p.y + p.h + ball.r + 1;
-        else ball.y = p.y - ball.r - 1;
-
+        // Solución C: separación proporcional anti-stick
+        if (directionY === 1) ball.y = p.y + p.h + ball.r + margin;
+        else ball.y = p.y - ball.r - margin;
       }
       // Paletas verticales (Left/Right)
       else {
         const center = p.y + p.h / 2;
-        collidePoint = (ball.y - center) / (p.h / 2);
+        collidePoint = Math.max(-1, Math.min(1, (ball.y - center) / (p.h / 2)));
 
-        let directionX = (ball.dx > 0) ? -1 : 1;
-
-        // DETECCIÓN DE DASH
-        if (Math.abs(p.dx) > 0) { // Nota: en verticales también es .dx porque usamos un solo prop de velocidad
-          isSmash = true;
-        }
+        // Solución B: dirección determinada por posición relativa
+        const paddleMidX = p.x + p.w / 2;
+        const directionX = (ball.x < paddleMidX) ? -1 : 1;
 
         const angleRad = collidePoint * (Math.PI / 3);
         let speed = Math.sqrt(ball.dx * ball.dx + ball.dy * ball.dy);
@@ -338,9 +331,9 @@ function updateBall() {
         ball.dx = directionX * speed * Math.cos(angleRad);
         ball.dy = speed * Math.sin(angleRad);
 
-        // Ajuste anti-stick
-        if (directionX === 1) ball.x = p.x + p.w + ball.r + 1;
-        else ball.x = p.x - ball.r - 1;
+        // Solución C: separación proporcional anti-stick
+        if (directionX === 1) ball.x = p.x + p.w + ball.r + margin;
+        else ball.x = p.x - ball.r - margin;
       }
     }
   });
@@ -377,19 +370,56 @@ function checkRectCollision(circle, rect) {
 }
 
 function resolveWallCollision(circle, rect) {
-  // Lógica simple de rebote en pared estática
-  // Determinar de qué lado vino para invertir DX o DY
-  const overlapX = Math.min(circle.x + circle.r - rect.x, rect.x + rect.w - (circle.x - circle.r));
-  const overlapY = Math.min(circle.y + circle.r - rect.y, rect.y + rect.h - (circle.y - circle.r));
+  // Solución A: reflexión especular con reposición correcta
+  const closestX = Math.max(rect.x, Math.min(circle.x, rect.x + rect.w));
+  const closestY = Math.max(rect.y, Math.min(circle.y, rect.y + rect.h));
 
-  if (overlapX < overlapY) {
-    circle.dx *= -1;
-    // Add randomness to prevent loops
-    circle.dy += (Math.random() - 0.5) * 0.5;
-  } else {
-    circle.dy *= -1;
-    // Add randomness to prevent loops
-    circle.dx += (Math.random() - 0.5) * 0.5;
+  const dx = circle.x - closestX;
+  const dy = circle.y - closestY;
+  const dist = Math.sqrt(dx * dx + dy * dy);
+  const margin = circle.r * 0.15; // Solución C: margen proporcional
+
+  // Caso especial: centro del círculo dentro del rectángulo
+  if (dist === 0) {
+    const overlapLeft = circle.x - rect.x;
+    const overlapRight = (rect.x + rect.w) - circle.x;
+    const overlapTop = circle.y - rect.y;
+    const overlapBottom = (rect.y + rect.h) - circle.y;
+    const minOverlap = Math.min(overlapLeft, overlapRight, overlapTop, overlapBottom);
+    const pushDist = circle.r + margin;
+
+    if (minOverlap === overlapLeft) {
+      circle.x = rect.x - pushDist;
+      circle.dx = -Math.abs(circle.dx);
+    } else if (minOverlap === overlapRight) {
+      circle.x = rect.x + rect.w + pushDist;
+      circle.dx = Math.abs(circle.dx);
+    } else if (minOverlap === overlapTop) {
+      circle.y = rect.y - pushDist;
+      circle.dy = -Math.abs(circle.dy);
+    } else {
+      circle.y = rect.y + rect.h + pushDist;
+      circle.dy = Math.abs(circle.dy);
+    }
+    return;
+  }
+
+  // Vector normal desde el punto más cercano hacia el centro del círculo
+  const nx = dx / dist;
+  const ny = dy / dist;
+  const penetration = circle.r - dist;
+
+  if (penetration > 0) {
+    // Empujar el círculo fuera del rectángulo
+    circle.x += nx * (penetration + margin);
+    circle.y += ny * (penetration + margin);
+
+    // Reflejar velocidad a lo largo de la normal (solo si se mueve hacia la pared)
+    const dotProduct = circle.dx * nx + circle.dy * ny;
+    if (dotProduct < 0) {
+      circle.dx -= 2 * dotProduct * nx;
+      circle.dy -= 2 * dotProduct * ny;
+    }
   }
 }
 
