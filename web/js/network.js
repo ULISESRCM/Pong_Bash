@@ -1,3 +1,7 @@
+// URL de producción de tu servidor de Socket.io (Render, Railway, VPS, etc.)
+// Reemplaza esta URL con la que te asigne tu proveedor de hosting.
+const PRODUCTION_SERVER_URL = "https://pong-bash-server.onrender.com";
+
 class NetworkManager {
     constructor() {
         this.socket = null;
@@ -9,9 +13,12 @@ class NetworkManager {
     }
 
     connect() {
-        // Connect to the server that served this page
-        this.socket = io();
-        // effectively same as io(window.location.origin)
+        // Detección inteligente del servidor a conectar
+        const isLocalWeb = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') && !window.Capacitor;
+        const serverUrl = isLocalWeb ? 'http://localhost:3000' : PRODUCTION_SERVER_URL;
+
+        console.log(`Conectando al servidor: ${serverUrl}`);
+        this.socket = io(serverUrl);
 
         this.socket.on('connect', () => {
             console.log('Connected to server');
