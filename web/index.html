@@ -13,12 +13,25 @@
 
   <!-- Dropdown de perfil de usuario logueado en la esquina superior derecha -->
   <div id="userProfileCard" style="display: none; position: fixed; top: 15px; right: 15px; z-index: 1000;">
-    <div onclick="toggleUserDropdown(event)" style="cursor: pointer; display: flex; align-items: center; justify-content: center;">
-      <img id="userAvatar" src="" style="width: 45px; height: 45px; border-radius: 50%; border: 2px solid white; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4); transition: transform 0.2s;" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'" />
+    <div onclick="toggleUserDropdown(event)"
+      style="cursor: pointer; display: flex; align-items: center; justify-content: center;">
+      <img id="userAvatar" src=""
+        style="width: 50px; height: 50px; border-radius: 50%; border: 2px solid rgba(255, 255, 255, 0.85); box-shadow: 0 0 10px rgba(74, 144, 226, 0.5), 0 4px 15px rgba(0, 0, 0, 0.5); transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);"
+        onmouseover="this.style.transform='scale(1.08) rotate(5deg)'; this.style.borderColor='#4a90e2';"
+        onmouseout="this.style.transform='scale(1) rotate(0deg)'; this.style.borderColor='rgba(255, 255, 255, 0.85)';" />
     </div>
-    <div id="userDropdownMenu" style="display: none; position: absolute; top: 55px; right: 0; background: rgba(30, 30, 30, 0.95); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 8px; padding: 12px 15px; min-width: 170px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5); text-align: right; z-index: 1001;">
-      <div id="userProfileName" style="font-weight: bold; font-size: 14px; color: #fff; margin-bottom: 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; direction: ltr;"></div>
-      <button onclick="logout(event)" style="background-color: #ff4d4d; color: white; border: none; padding: 6px 12px; border-radius: 4px; font-size: 12px; cursor: pointer; width: 100%; font-weight: bold; transition: background 0.2s;" onmouseover="this.style.backgroundColor='#e63939'" onmouseout="this.style.backgroundColor='#ff4d4d'">Cerrar sesión</button>
+    <div id="userDropdownMenu"
+      style="display: none; position: absolute; top: 60px; right: 0; background: rgba(18, 18, 18, 0.88); backdrop-filter: blur(15px); -webkit-backdrop-filter: blur(15px); border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 14px; padding: 16px 20px; min-width: 190px; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.65); text-align: right; z-index: 1001; transition: all 0.2s ease;">
+      <div id="userProfileName"
+        style="font-weight: 800; font-size: 15px; color: #fff; margin-bottom: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; direction: ltr; letter-spacing: 0.3px;">
+      </div>
+      <div id="userProfileWinRate"
+        style="font-size: 14px; font-weight: bold; color: #2ecc71; margin-bottom: 14px; direction: ltr; border-top: 1px solid rgba(255, 255, 255, 0.08); padding-top: 8px; letter-spacing: 0.2px;">
+        Win Rate: --%</div>
+      <button onclick="logout(event)"
+        style="background: linear-gradient(135deg, #ff4d4d, #d32f2f); color: white; border: none; padding: 8px 14px; border-radius: 8px; font-size: 12px; cursor: pointer; width: 100%; font-weight: bold; transition: all 0.2s ease; box-shadow: 0 4px 10px rgba(255, 77, 77, 0.2);"
+        onmouseover="this.style.filter='brightness(1.1)'; this.style.transform='translateY(-1px)';"
+        onmouseout="this.style.filter='none'; this.style.transform='translateY(0px)';">Cerrar sesión</button>
     </div>
   </div>
 
@@ -44,18 +57,22 @@
         Jugar Online
       </button>
       <button id="playOnlineBtn" onclick="toggleOnlineMenu()"
-        style="background-color: #4a90e2; width: 100%; margin-top: 10px; display: none;">Jugar Online</button>
+        style="background-color: #4a90e2; width: 100%; margin-top: 10px; display: none;">Crear o Unirse</button>
 
       <!-- Rankings Desplegables -->
-      <div id="startScreenRankings" style="width: 100%; margin-top: 20px; display: none; flex-direction: column; gap: 15px;">
-        
+      <div id="startScreenRankings"
+        style="width: 100%; margin-top: 20px; display: none; flex-direction: column; gap: 15px;">
+
         <!-- Ranking Semanal -->
-        <div class="ranking-card" style="width: 100%; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 16px; padding: 15px; text-align: left; position: relative;">
-          <div onclick="toggleRankingDropdown('weekly')" style="cursor: pointer; display: flex; justify-content: space-between; align-items: flex-start;">
+        <div class="ranking-card"
+          style="width: 100%; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 16px; padding: 15px; text-align: left; position: relative;">
+          <div onclick="toggleRankingDropdown('weekly')"
+            style="cursor: pointer; display: flex; justify-content: space-between; align-items: flex-start;">
             <div style="flex: 1;">
               <h3 style="font-size: 16px; font-weight: bold; margin-bottom: 8px;">Ranking Semanal</h3>
               <!-- Preview Pill -->
-              <div style="background: rgba(255,255,255,0.04); border-radius: 8px; padding: 8px 12px; display: flex; flex-direction: column; gap: 4px; font-size: 13px;">
+              <div
+                style="background: rgba(255,255,255,0.04); border-radius: 8px; padding: 8px 12px; display: flex; flex-direction: column; gap: 4px; font-size: 13px;">
                 <div id="weeklyLeaderPreview" style="color: #ccc; font-weight: 500;">🥇 #1 --</div>
                 <div id="weeklyUserPreview" style="color: #4da6ff; font-weight: bold;">👤 #-- Vos --</div>
               </div>
@@ -63,13 +80,15 @@
             <div style="font-size: 30px; margin-left: 10px;">🏆</div>
           </div>
           <!-- Full List (Dropdown Content) -->
-          <div id="weeklyDropdownContent" style="display: none; margin-top: 15px; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 10px;">
+          <div id="weeklyDropdownContent"
+            style="display: none; margin-top: 15px; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 10px;">
             <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
               <thead>
                 <tr style="border-bottom: 1px solid rgba(255,255,255,0.15); color: #999;">
                   <th style="padding: 4px 0; text-align: left;">Puesto</th>
                   <th style="padding: 4px 0; text-align: left;">Jugador</th>
-                  <th style="padding: 4px 0; text-align: right;">ELO</th>
+                  <th style="padding: 4px 0; text-align: center;">WR</th>
+                  <th style="padding: 4px 0; text-align: right;">Pts</th>
                 </tr>
               </thead>
               <tbody id="weeklyLeaderboardBody">
@@ -80,12 +99,15 @@
         </div>
 
         <!-- Ranking Mensual -->
-        <div class="ranking-card" style="width: 100%; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 16px; padding: 15px; text-align: left; position: relative;">
-          <div onclick="toggleRankingDropdown('monthly')" style="cursor: pointer; display: flex; justify-content: space-between; align-items: flex-start;">
+        <div class="ranking-card"
+          style="width: 100%; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 16px; padding: 15px; text-align: left; position: relative;">
+          <div onclick="toggleRankingDropdown('monthly')"
+            style="cursor: pointer; display: flex; justify-content: space-between; align-items: flex-start;">
             <div style="flex: 1;">
               <h3 style="font-size: 16px; font-weight: bold; margin-bottom: 8px;">Ranking Mensual</h3>
               <!-- Preview Pill -->
-              <div style="background: rgba(255,255,255,0.04); border-radius: 8px; padding: 8px 12px; display: flex; flex-direction: column; gap: 4px; font-size: 13px;">
+              <div
+                style="background: rgba(255,255,255,0.04); border-radius: 8px; padding: 8px 12px; display: flex; flex-direction: column; gap: 4px; font-size: 13px;">
                 <div id="monthlyLeaderPreview" style="color: #ccc; font-weight: 500;">🥇 #1 --</div>
                 <div id="monthlyUserPreview" style="color: #4da6ff; font-weight: bold;">👤 #-- Vos --</div>
               </div>
@@ -93,13 +115,15 @@
             <div style="font-size: 30px; margin-left: 10px;">🏆</div>
           </div>
           <!-- Full List (Dropdown Content) -->
-          <div id="monthlyDropdownContent" style="display: none; margin-top: 15px; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 10px;">
+          <div id="monthlyDropdownContent"
+            style="display: none; margin-top: 15px; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 10px;">
             <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
               <thead>
                 <tr style="border-bottom: 1px solid rgba(255,255,255,0.15); color: #999;">
                   <th style="padding: 4px 0; text-align: left;">Puesto</th>
                   <th style="padding: 4px 0; text-align: left;">Jugador</th>
-                  <th style="padding: 4px 0; text-align: right;">ELO</th>
+                  <th style="padding: 4px 0; text-align: center;">WR</th>
+                  <th style="padding: 4px 0; text-align: right;">Pts</th>
                 </tr>
               </thead>
               <tbody id="monthlyLeaderboardBody">
@@ -115,6 +139,8 @@
 
   <div id="endContent" class="overlay" style="display: none;">
     <h1 id="winnerName">🎉 ¡Ganador! 🎉</h1>
+    <div id="pointsDeltaDisplay"
+      style="font-size: clamp(32px, 8vw, 64px); font-weight: bold; margin: 15px 0; display: none;"></div>
     <div id="restartStatusList" style="margin: 15px 0;"></div>
     <button onclick="restartGame()">Jugar de nuevo</button>
     <button onclick="leaveRoom()" style="background-color: #e74c3c; margin-top: 10px;">Salir de Sala</button>
@@ -124,6 +150,10 @@
 
   <!-- Socket.io -->
   <script src="https://cdn.socket.io/4.7.4/socket.io.min.js"></script>
+  
+  <!-- SweetAlert2 -->
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
   <script src="js/network.js"></script>
 
   <!-- Auth -->
@@ -151,8 +181,7 @@
         <button onclick="startOnline('join')" style="flex: 1;">Unirse</button>
       </div>
       <br><br>
-      <button onclick="document.getElementById('onlineMenu').style.display = 'none'"
-        style="background: #e74c3c; width: 100%;">Cerrar</button>
+      <button onclick="closeOnlineMenu()" style="background: #e74c3c; width: 100%;">Cerrar</button>
     </div>
 
     <!-- Lobby View -->
@@ -164,39 +193,83 @@
       </ul>
 
       <button id="readyButton" onclick="network.toggleReady()"
-        style="background-color: #f1c40f; width: 100%; margin-bottom: 10px; display: none;">Marcar como LISTO</button>
+        style="background-color: #f1c40f; width: 100%; margin-bottom: 10px; display: none;">Listo</button>
 
       <div id="hostControls" style="display: none;">
-        <button onclick="network.startGame()" style="background-color: #2ecc71; width: 100%;">COMENZAR JUEGO</button>
+        <button onclick="network.startGame()" style="background-color: #2ecc71; width: 100%;">Comenzar</button>
       </div>
       <p id="waitingMessage" style="display: none; color: #999;">Esperando al anfitrión...</p>
+
+      <!-- Salir de la Sala -->
+      <button onclick="leaveRoom()" style="background-color: #e74c3c; width: 100%; margin-top: 10px;">Salir de la
+        Sala</button>
     </div>
   </div>
 
   <script>
+    // Helper para alertas estéticas con SweetAlert2 (estilo oscuro)
+    window.showAlert = function(title, text = "", icon = "warning") {
+      if (window.Swal) {
+        Swal.fire({
+          title: title,
+          text: text,
+          icon: icon,
+          background: '#121212',
+          color: '#fff',
+          confirmButtonColor: '#4a90e2',
+          confirmButtonText: 'Entendido'
+        });
+      } else {
+        alert(`${title}\n${text}`);
+      }
+    };
+
     function startOnline(action) {
+      const playerName = document.getElementById('playerName').value.trim();
+      if (!playerName) {
+        window.showAlert("¡Falta tu nombre!", "Por favor, ingresá tu nombre antes de jugar.", "info");
+        return;
+      }
+
       // Connect if not initialized
       if (!network.socket) {
         network.connect();
       }
 
-      // If we just connected, give it a moment or rely on buffering.
       if (action === 'create') {
-        const playerName = document.getElementById('playerName').value.trim() || 'Jugador';
         network.createRoom(playerName);
       } else if (action === 'join') {
         const code = document.getElementById('roomCodeInput').value.trim();
-        const playerName = document.getElementById('playerName').value.trim() || 'Jugador';
         if (code) network.joinRoom(code, playerName);
-        else alert("Ingresa un código de sala");
+        else window.showAlert("Código de sala inválido", "Ingresa un código de sala para unirte.", "warning");
       }
     }
 
-    // Expose toggle function
+    // Expose toggle functions
     window.toggleOnlineMenu = function () {
       const menu = document.getElementById('onlineMenu');
-      menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
-    }
+      const startScreen = document.getElementById('startScreen');
+      const isOpening = menu.style.display !== 'block';
+
+      if (isOpening) {
+        const playerName = document.getElementById('playerName').value.trim();
+        if (!playerName) {
+          window.showAlert("¡Falta tu nombre!", "Por favor, ingresá tu nombre antes de jugar.", "info");
+          return;
+        }
+        menu.style.display = 'block';
+        if (startScreen) startScreen.style.display = 'none';
+      } else {
+        menu.style.display = 'none';
+        if (startScreen) startScreen.style.display = 'flex';
+      }
+    };
+
+    window.closeOnlineMenu = function () {
+      document.getElementById('onlineMenu').style.display = 'none';
+      const startScreen = document.getElementById('startScreen');
+      if (startScreen) startScreen.style.display = 'flex';
+    };
   </script>
 
 </body>
