@@ -46,7 +46,7 @@ export class AuthService {
     }
 
     /**
-     * Actualiza el ELO del usuario tras finalizar una partida.
+     * Actualiza los puntos del usuario tras finalizar una partida.
      * @param {string} nickname El nombre ficticio con el que jugó esta partida.
      * @param {number} eloDelta Los puntos ganados o perdidos (+15, +10, -5).
      * @returns {Promise<void>}
