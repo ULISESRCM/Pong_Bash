@@ -217,6 +217,27 @@ function gameLoop() {
 
 function updateBall() {
   if (gameOver) return;
+  
+  // Pausa de 2 segundos tras gol con parpadeo
+  if (window.ballRespawnTimerActive) {
+    if (Date.now() - window.ballRespawnStartTime > 2000) {
+      window.ballRespawnTimerActive = false;
+    } else {
+      // El host transmite la posición quieta de la pelota para mantener la sincronización online
+      if (window.network && window.network.roomId && window.network.isHost) {
+        const now = Date.now();
+        if (!ball.lastSent || now - ball.lastSent > 33) {
+          window.network.sendBallUpdate(
+            ball.x / canvas.width, ball.y / canvas.height,
+            0, 0
+          );
+          ball.lastSent = now;
+        }
+      }
+      return;
+    }
+  }
+
   if (window.countdownActive) return; // Evitar mover la pelota durante el conteo regesivo
 
   // 🌐 ONLINE: Clientes extrapolan localmente — el host corrige cada ~33ms
@@ -439,6 +460,10 @@ function removeLife(index, side) {
   }
 
   resetBall();
+
+  // Activar temporizador de respawn (pausa de 2s parpadeando)
+  window.ballRespawnTimerActive = true;
+  window.ballRespawnStartTime = Date.now();
 }
 
 function closeWall(side) {
@@ -473,6 +498,12 @@ function drawWalls() {
 }
 
 function drawBall() {
+  if (window.ballRespawnTimerActive) {
+    const blinkPeriod = 200; // parpadea cada 200ms
+    const showBall = Math.floor(Date.now() / blinkPeriod) % 2 === 0;
+    if (!showBall) return;
+  }
+
   ctx.beginPath();
   ctx.arc(ball.x, ball.y, ball.r, 0, Math.PI * 2);
   ctx.fillStyle = ball.color;
@@ -606,6 +637,10 @@ window.updateRemoteLife = function (playerId, lives) {
       }, 400);
     }
   }
+
+  // Activar temporizador de respawn (pausa de 2s parpadeando)
+  window.ballRespawnTimerActive = true;
+  window.ballRespawnStartTime = Date.now();
 };
 
 // ── Conteo Regresivo (3, 2, 1, GO!) ──

@@ -87,7 +87,11 @@ class NetworkManager {
                 document.getElementById('onlineMainView').style.display = 'block';
             }
             
-            alert("El anfitrión ha disuelto la sala. Volviendo a la pantalla principal.");
+            if (window.showAlert) {
+                window.showAlert("Sala disuelta", "El anfitrión ha disuelto la sala. Volviendo a la pantalla principal.", "info");
+            } else {
+                alert("El anfitrión ha disuelto la sala. Volviendo a la pantalla principal.");
+            }
         });
 
 
@@ -142,7 +146,7 @@ class NetworkManager {
 
         this.socket.on('player_left', (data) => {
             console.log(`Player ${data.playerId} disconnected.`);
-            const isPlaying = window.loopRunning || window.gameOver;
+            const isPlaying = window.loopRunning && !window.gameOver;
 
             const item = document.getElementById(`pList-${data.playerId}`);
             if (item) item.remove();
@@ -150,30 +154,43 @@ class NetworkManager {
             delete this.playerNames[data.playerId];
 
             if (isPlaying) {
-                // Detener juego local
-                if (window.stopGame) window.stopGame();
-                
-                // Restaurar vista del canvas
-                if (window.canvas) {
-                    window.canvas.style.transition = '';
-                    window.canvas.style.transform = '';
+                // Si la partida está activa, su lado de la paleta queda totalmente bloqueado
+                const pIndex = parseInt(data.playerId) - 1;
+                if (window.paddles && window.paddles[pIndex]) {
+                    const p = window.paddles[pIndex];
+                    if (p.lives > 0) {
+                        p.lives = 0;
+                        if (window.closeWall) {
+                            window.closeWall(p.side);
+                        }
+                        if (!window.eliminationOrder) window.eliminationOrder = [];
+                        if (!window.eliminationOrder.includes(pIndex)) {
+                            window.eliminationOrder.push(pIndex);
+                        }
+                        if (window.drawLives) window.drawLives();
+
+                        // Verificar si solo queda un sobreviviente
+                        const vivos = window.paddles.filter(pad => pad.lives > 0);
+                        if (vivos.length === 1) {
+                            window.gameOver = true;
+                            if (this.isHost) {
+                                const ganadorIndex = window.paddles.indexOf(vivos[0]);
+                                this.sendGameOver(ganadorIndex);
+                            }
+                            setTimeout(() => {
+                                const ganadorIndex = window.paddles.indexOf(vivos[0]);
+                                const nombreGanador = (window.playerNames && window.playerNames[ganadorIndex]) || ["Rojo", "Azul", "Amarillo", "Verde"][ganadorIndex];
+                                document.getElementById('winnerName').textContent = `🎉 ¡Ganador: ${nombreGanador}! 🎉`;
+                                document.getElementById('startScreen').style.display = 'flex';
+                                document.getElementById('startContent').style.display = 'none';
+                                document.getElementById('endContent').style.display = 'flex';
+                            }, 400);
+                        }
+                    }
                 }
-                window.canvasRotation = 0;
-                if (window.paddles) {
-                    window.paddles.forEach(p => { p.keys = ['ArrowLeft', 'ArrowRight']; });
-                }
-
-                // Volver a la pantalla del lobby
-                document.getElementById('startScreen').style.display = 'flex';
-                document.getElementById('startContent').style.display = 'none';
-                document.getElementById('endContent').style.display = 'none';
-
-                // Mostrar el contenedor del menú online
-                document.getElementById('onlineMenu').style.display = 'block';
-
+            } else {
+                // Si no se estaba jugando (Lobby), actualizamos la interfaz del lobby
                 this.showLobby(this.isHost);
-
-                // Reconstruir lista de jugadores con los restantes y estados de listo reseteados
                 document.getElementById('lobbyPlayerList').innerHTML = '';
                 if (data.players) {
                     for (const pId in data.players) {
@@ -182,13 +199,15 @@ class NetworkManager {
                         this.addPlayerToLobby(parseInt(pId), false, p.name);
                     }
                 }
-
-                alert("Un jugador ha salido de la sala. Volviendo al lobby para esperar a otro jugador.");
             }
         });
 
         this.socket.on('error', (msg) => {
-            alert(msg);
+            if (window.showAlert) {
+                window.showAlert("Error", msg, "error");
+            } else {
+                alert(msg);
+            }
         });
 
         // Game State Events
@@ -227,10 +246,30 @@ class NetworkManager {
                 // Mostrar lista inicial de listos (todos en espera)
                 this.updatePlayAgainList();
 
-                // Actualizar ELO del jugador logueado
+                // Actualizar puntos del jugador logueado
                 this.updateLocalPlayerElo(data.winnerIndex);
             }
         });
+    }
+
+    renderPlayerRow(pId, displayName, isMe, isReady) {
+        const colors = ["#ff4d4d", "#4a90e2", "#f1c40f", "#2ecc71"];
+        const color = colors[pId - 1] || "#fff";
+        const meSuffix = isMe ? ' <span style="font-size: 11px; opacity: 0.6; font-style: italic;">(Tú)</span>' : '';
+        
+        const badge = isReady 
+            ? `<span style="background-color: #2ecc71; color: white; padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: bold; box-shadow: 0 2px 8px rgba(46,204,113,0.35); text-transform: uppercase; letter-spacing: 0.5px;">Listo</span>`
+            : `<span style="background-color: rgba(255,255,255,0.08); color: #aaa; padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: 600;">Esperando</span>`;
+
+        return `
+            <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <span style="display: inline-block; width: 10px; height: 10px; border-radius: 50%; background-color: ${color}; box-shadow: 0 0 8px ${color}88;"></span>
+                    <span style="font-weight: 600; color: #fff; font-size: 14px;">${displayName}${meSuffix}</span>
+                </div>
+                ${badge}
+            </div>
+        `;
     }
 
     showLobby(isHost) {
@@ -251,27 +290,36 @@ class NetworkManager {
         }
 
         document.getElementById('readyButton').style.display = 'block';
-        document.getElementById('readyButton').innerText = "Marcar como LISTO";
+        document.getElementById('readyButton').innerText = "Listo";
     }
 
     addPlayerToLobby(pId, isReady = false, name = null) {
         const list = document.getElementById('lobbyPlayerList');
-        if (document.getElementById(`pList-${pId}`)) return;
+        let li = document.getElementById(`pList-${pId}`);
+        if (!li) {
+            li = document.createElement('li');
+            li.id = `pList-${pId}`;
+            list.appendChild(li);
+        }
 
-        const li = document.createElement('li');
-        li.id = `pList-${pId}`;
-        const colors = ["red", "blue", "yellow", "green"];
-        const defaultNames = ["Rojo", "Azul", "Amarillo", "Verde"];
+        const colors = ["#ff4d4d", "#4a90e2", "#f1c40f", "#2ecc71"];
+        const color = colors[pId - 1] || "#fff";
+        
+        li.style.display = "flex";
+        li.style.alignItems = "center";
+        li.style.padding = "10px 14px";
+        li.style.marginBottom = "8px";
+        li.style.background = "rgba(255,255,255,0.03)";
+        li.style.border = "1px solid rgba(255,255,255,0.08)";
+        li.style.borderLeft = `4px solid ${color}`;
+        li.style.borderRadius = "10px";
+        li.style.listStyleType = "none";
 
-        const displayName = name || this.playerNames[pId] || defaultNames[pId - 1];
-        // Guardar nombre para uso posterior
+        const displayName = name || this.playerNames[pId] || ["Rojo", "Azul", "Amarillo", "Verde"][pId - 1];
         if (name) this.playerNames[pId] = name;
 
-        li.style.color = colors[pId - 1];
-        const isMe = pId === this.playerId ? " (Tú)" : "";
-        const readyStatus = isReady ? " ✅ LISTO" : " ⏳ ...";
-        li.innerText = `${displayName}${isMe}${readyStatus}`;
-        list.appendChild(li);
+        const isMe = pId === this.playerId;
+        li.innerHTML = this.renderPlayerRow(pId, displayName, isMe, isReady);
     }
 
     toggleReady() {
@@ -383,11 +431,14 @@ class NetworkManager {
      }
 
     async updateLocalPlayerElo(winnerIndex) {
+        const deltaEl = document.getElementById('pointsDeltaDisplay');
+        if (deltaEl) deltaEl.style.display = 'none'; // ocultar por defecto
+
         if (!window.authService) return;
         
         try {
             const user = window.authService.getCurrentUser();
-            if (!user) return; // Jugador invitado, no actualizar ELO
+            if (!user) return; // Jugador invitado, no actualizar puntos
 
             // 1. Determinar el apodo ficticio que usó
             const myName = document.getElementById('playerName') ? document.getElementById('playerName').value.trim() : user.name;
@@ -395,25 +446,43 @@ class NetworkManager {
             // 2. Determinar el índice local del jugador (0, 1, 2, 3)
             const myIndex = this.playerId - 1;
 
-            // 3. Calcular el ELO delta según los requisitos:
+            // 3. Calcular la variación de puntos según los requisitos:
             // Ganador: +15, Segundo: +10, Tercero: -5, Cuarto: -5
             let eloDelta = -5; // default fallback
 
-            if (myIndex === winnerIndex) {
+            if (Number(myIndex) === Number(winnerIndex)) {
                 eloDelta = 15; // 1° puesto (Ganador)
             } else if (window.eliminationOrder) {
-                const myEliminationPos = window.eliminationOrder.indexOf(myIndex);
-                if (myEliminationPos === 2) {
+                const myEliminationPos = window.eliminationOrder.indexOf(Number(myIndex));
+                if (Number(myEliminationPos) === 2) {
                     eloDelta = 10; // 2° puesto (el último eliminado antes del ganador)
                 } else {
                     eloDelta = -5; // 3° o 4° puesto (los primeros dos eliminados)
                 }
             }
 
+            // Mostrar la variación de puntos en la pantalla final (en el medio)
+            if (deltaEl) {
+                if (eloDelta > 0) {
+                    deltaEl.textContent = `+${eloDelta} pts`;
+                    deltaEl.style.color = '#2ecc71'; // Verde
+                } else {
+                    deltaEl.textContent = `${eloDelta} pts`;
+                    deltaEl.style.color = '#e74c3c'; // Rojo
+                }
+                deltaEl.style.display = 'block';
+            }
+
             // 4. Llamar al servicio de autenticación para realizar la actualización segura
             await window.authService.updateEloAfterMatch(myName, eloDelta);
+
+            // 5. Recargar inmediatamente las tablas de ranking locales
+            if (window.loadRankingData) {
+                window.loadRankingData('weekly');
+                window.loadRankingData('monthly');
+            }
         } catch (error) {
-            console.error("Error al actualizar ELO tras finalizar la partida:", error);
+            console.error("Error al actualizar puntos tras finalizar la partida:", error);
         }
     }
 }
