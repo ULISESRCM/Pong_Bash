@@ -79,7 +79,7 @@ class NetworkManager {
 
         this.socket.on('room_disolved', () => {
             if (window.gameOver !== undefined) window.gameOver = false;
-            
+
             // Llamar a la función de salida global para resetear UI y desconectar
             if (typeof window.leaveRoom === 'function') {
                 window.leaveRoom();
@@ -93,7 +93,7 @@ class NetworkManager {
                 document.getElementById('onlineLobbyView').style.display = 'none';
                 document.getElementById('onlineMainView').style.display = 'block';
             }
-            
+
             if (window.showAlert) {
                 window.showAlert("Sala disuelta", "El anfitrión ha disuelto la sala. Volviendo a la pantalla principal.", "info");
             } else {
@@ -263,8 +263,8 @@ class NetworkManager {
         const colors = ["#ff4d4d", "#4a90e2", "#f1c40f", "#2ecc71"];
         const color = colors[pId - 1] || "#fff";
         const meSuffix = isMe ? ' <span style="font-size: 11px; opacity: 0.6; font-style: italic;">(Tú)</span>' : '';
-        
-        const badge = isReady 
+
+        const badge = isReady
             ? `<span style="background-color: #2ecc71; color: white; padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: bold; box-shadow: 0 2px 8px rgba(46,204,113,0.35); text-transform: uppercase; letter-spacing: 0.5px;">Listo</span>`
             : `<span style="background-color: rgba(255,255,255,0.08); color: #aaa; padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: 600;">Esperando</span>`;
 
@@ -311,7 +311,7 @@ class NetworkManager {
 
         const colors = ["#ff4d4d", "#4a90e2", "#f1c40f", "#2ecc71"];
         const color = colors[pId - 1] || "#fff";
-        
+
         li.style.display = "flex";
         li.style.alignItems = "center";
         li.style.padding = "10px 14px";
@@ -435,14 +435,14 @@ class NetworkManager {
         }
         html += '</div>';
         listDiv.innerHTML = html;
-     }
+    }
 
     async updateLocalPlayerElo(winnerIndex) {
         const deltaEl = document.getElementById('pointsDeltaDisplay');
         if (deltaEl) deltaEl.style.display = 'none'; // ocultar por defecto
 
         if (!window.authService) return;
-        
+
         try {
             const user = window.authService.getCurrentUser();
             if (!user) return; // Jugador invitado, no actualizar puntos
