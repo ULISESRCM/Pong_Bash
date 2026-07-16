@@ -57,8 +57,9 @@ canvas {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
   color: #fff;
+  overflow-y: auto; /* Permitir scroll vertical cuando el contenido exceda la pantalla */
+  padding: 30px 0;
 }
 
 .centered-content {
@@ -70,6 +71,7 @@ canvas {
   max-width: 400px;
   text-align: center;
   padding: 20px;
+  margin: auto; /* Mantiene centrado vertical si cabe, o inicia desde arriba si desborda */
 }
 
 .centered-content h1 {
