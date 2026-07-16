@@ -93,7 +93,13 @@ io.on('connection', (socket) => {
                 });
 
                 // Notificar a los demás
-                io.to(roomId).emit('player_joined', { playerId, ready: false, name: name });
+                io.to(roomId).emit('player_joined', { 
+                    playerId, 
+                    ready: false, 
+                    name: name,
+                    skinId: 'default',
+                    trailId: 'none'
+                });
 
                 console.log(`User ${socket.id} joined room ${roomId} as Player ${playerId} (${name})`);
             }

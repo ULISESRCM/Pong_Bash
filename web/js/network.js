@@ -80,8 +80,13 @@ class NetworkManager {
 
         this.socket.on('player_joined', (data) => {
             this.playerNames[data.playerId] = data.name || `Jugador ${data.playerId}`;
-            this.playerSkins[data.playerId] = data.skinId || 'default';
-            this.playerTrails[data.playerId] = data.trailId || 'none';
+            // Evitar pisar la configuración si ya nos llegó un update por carrera de paquetes
+            if (!this.playerSkins[data.playerId]) {
+                this.playerSkins[data.playerId] = data.skinId || 'default';
+            }
+            if (!this.playerTrails[data.playerId]) {
+                this.playerTrails[data.playerId] = data.trailId || 'none';
+            }
             this.addPlayerToLobby(data.playerId, false, data.name);
         });
 
@@ -328,6 +333,26 @@ class NetworkManager {
     }
 
     showLobby(isHost) {
+        // Resetear localmente el skin y trail activos a "Clásico" y "Sin Estela" al entrar a la sala
+        if (window.SkinManager) {
+            window.SkinManager.currentPaddleSkin = 'default';
+            window.SkinManager.currentTrail = 'none';
+            window.SkinManager.updateSelectionUI('paddle');
+            window.SkinManager.updateSelectionUI('trail');
+        }
+
+        // Resetear en caché de red de este cliente
+        if (this.playerId) {
+            this.playerSkins[this.playerId] = 'default';
+            this.playerTrails[this.playerId] = 'none';
+        }
+
+        // Emitir los valores reseteados al servidor
+        if (this.socket && this.roomId && this.playerId) {
+            this.socket.emit('change_skin', { roomId: this.roomId, playerId: this.playerId, skinId: 'default' });
+            this.socket.emit('change_trail', { roomId: this.roomId, playerId: this.playerId, trailId: 'none' });
+        }
+
         document.getElementById('onlineMainView').style.display = 'none';
         document.getElementById('onlineLobbyView').style.display = 'block';
         document.getElementById('lobbyRoomCode').innerText = this.roomId;
