@@ -544,10 +544,10 @@ class NetworkManager {
             // Mostrar la variación de puntos en la pantalla final (en el medio)
             if (deltaEl) {
                 if (eloDelta > 0) {
-                    deltaEl.textContent = `+${eloDelta} pts`;
+                    deltaEl.textContent = `+${eloDelta} exp`;
                     deltaEl.style.color = '#2ecc71'; // Verde
                 } else {
-                    deltaEl.textContent = `${eloDelta} pts`;
+                    deltaEl.textContent = `${eloDelta} exp`;
                     deltaEl.style.color = '#e74c3c'; // Rojo
                 }
                 deltaEl.style.display = 'block';

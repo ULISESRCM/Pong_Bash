@@ -231,7 +231,7 @@ window.loadRankingData = async function(type) {
             <td style="padding: 4px 0; font-weight: bold;">${rankBadge}</td>
             <td style="padding: 4px 0; max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${player.nickname}</td>
             <td style="padding: 4px 0; text-align: center; color: #aaa;">${wr}%</td>
-            <td style="padding: 4px 0; text-align: right; font-weight: bold; color: #f1c40f;">${player.elo} pts</td>
+            <td style="padding: 4px 0; text-align: right; font-weight: bold; color: #f1c40f;">${player.elo} exp</td>
           </tr>
         `;
       }).join('');
@@ -249,12 +249,12 @@ window.loadRankingData = async function(type) {
         
         if (userRankInfo.rank === 1) {
           // Si es el puesto #1, renombramos el líder a "Vos" y mostramos sus puntos
-          leaderPreview.textContent = `🥇 #1 Vos (${userRankInfo.elo} pts)`;
+          leaderPreview.textContent = `🥇 #1 Vos (${userRankInfo.elo} exp)`;
           userPreview.style.display = 'none';
         } else {
           // Si no es el puesto #1, mostramos ambas líneas (el líder sin puntos y el usuario con puntos)
           userPreview.style.display = 'block';
-          userPreview.textContent = `👤 ${rankText} Vos (${userRankInfo.elo} pts)`;
+          userPreview.textContent = `👤 ${rankText} Vos (${userRankInfo.elo} exp)`;
         }
 
         // Actualizar el Win Rate en el dropdown del perfil del usuario
