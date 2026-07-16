@@ -216,6 +216,10 @@ function gameLoop() {
 
 
 function updateBall() {
+  if (window.SkinManager) {
+    window.SkinManager.updateTrail(ball);
+  }
+
   if (gameOver) return;
   
   // Pausa de 2 segundos tras gol con parpadeo
@@ -335,6 +339,10 @@ function updateBall() {
         if (directionX === 1) ball.x = p.x + p.w + ball.r + margin;
         else ball.x = p.x - ball.r - margin;
       }
+      if (window.AudioManager) {
+        if (isSmash) window.AudioManager.smashHit();
+        else window.AudioManager.paddleHit();
+      }
     }
   });
 
@@ -401,6 +409,7 @@ function resolveWallCollision(circle, rect) {
       circle.y = rect.y + rect.h + pushDist;
       circle.dy = Math.abs(circle.dy);
     }
+    if (window.AudioManager) window.AudioManager.wallBounce();
     return;
   }
 
@@ -419,6 +428,7 @@ function resolveWallCollision(circle, rect) {
     if (dotProduct < 0) {
       circle.dx -= 2 * dotProduct * nx;
       circle.dy -= 2 * dotProduct * ny;
+      if (window.AudioManager) window.AudioManager.wallBounce();
     }
   }
 }
@@ -465,6 +475,9 @@ function removeLife(index, side) {
       if (!window.eliminationOrder.includes(index)) {
         window.eliminationOrder.push(index);
       }
+      if (window.AudioManager) window.AudioManager.playerEliminated();
+    } else {
+      if (window.AudioManager) window.AudioManager.goalScored();
     }
   }
 
@@ -472,6 +485,7 @@ function removeLife(index, side) {
   if (vivos.length === 1) {
     gameOver = true;
     drawLives();
+    if (window.AudioManager) window.AudioManager.win();
 
     // 🌐 ONLINE HOST SIGNAL
     if (window.network && window.network.roomId && window.network.isHost) {
@@ -516,8 +530,12 @@ function closeWall(side) {
 function drawPaddles() {
   paddles.forEach(p => {
     if (p.lives > 0) {
-      ctx.fillStyle = p.color;
-      ctx.fillRect(p.x, p.y, p.w, p.h);
+      if (window.SkinManager) {
+        window.SkinManager.drawPaddle(ctx, p);
+      } else {
+        ctx.fillStyle = p.color;
+        ctx.fillRect(p.x, p.y, p.w, p.h);
+      }
     }
   });
 }
@@ -532,6 +550,11 @@ function drawBall() {
     const blinkPeriod = 200; // parpadea cada 200ms
     const showBall = Math.floor(Date.now() / blinkPeriod) % 2 === 0;
     if (!showBall) return;
+  }
+
+  // Dibujar la estela de la pelota
+  if (window.SkinManager) {
+    window.SkinManager.drawTrail(ctx, ball);
   }
 
   ctx.beginPath();
@@ -639,6 +662,9 @@ window.updateRemoteLife = function (playerId, lives) {
       if (!window.eliminationOrder.includes(pIndex)) {
         window.eliminationOrder.push(pIndex);
       }
+      if (window.AudioManager) window.AudioManager.playerEliminated();
+    } else if (oldLives > lives) {
+      if (window.AudioManager) window.AudioManager.goalScored();
     }
 
     // Draw lives immediately to reflect change
@@ -649,6 +675,7 @@ window.updateRemoteLife = function (playerId, lives) {
     if (vivos.length === 1) {
       gameOver = true;
       drawLives();
+      if (window.AudioManager) window.AudioManager.win();
 
       // If we are host, we should have caught this in checkGoal, 
       // but if this came from a weird edge case, we ensure sync.
@@ -684,14 +711,18 @@ window.startCountdown = function() {
   }
   window.countdownActive = true;
   window.countdownVal = 3;
+  if (window.AudioManager) window.AudioManager.countdownBeep();
 
   window.countdownInterval = setInterval(() => {
     if (window.countdownVal === 3) {
       window.countdownVal = 2;
+      if (window.AudioManager) window.AudioManager.countdownBeep();
     } else if (window.countdownVal === 2) {
       window.countdownVal = 1;
+      if (window.AudioManager) window.AudioManager.countdownBeep();
     } else if (window.countdownVal === 1) {
       window.countdownVal = "GO!";
+      if (window.AudioManager) window.AudioManager.countdownGo();
     } else {
       clearInterval(window.countdownInterval);
       window.countdownInterval = null;

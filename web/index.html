@@ -11,6 +11,14 @@
 <body>
   <div id="livesBar"></div>
 
+  <!-- Botón de Silencio en la esquina superior izquierda -->
+  <button id="soundToggleBtn" onclick="AudioManager.toggle()"
+    style="position: fixed; top: 15px; left: 15px; z-index: 1000; width: 45px; height: 45px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.2); background: rgba(0,0,0,0.6); color: white; font-size: 20px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s ease; box-shadow: 0 4px 10px rgba(0,0,0,0.3);"
+    onmouseover="this.style.background='rgba(255,255,255,0.1)'; this.style.transform='scale(1.05)';"
+    onmouseout="this.style.background='rgba(0,0,0,0.6)'; this.style.transform='scale(1)';">
+    🔊
+  </button>
+
   <!-- Dropdown de perfil de usuario logueado en la esquina superior derecha -->
   <div id="userProfileCard" style="display: none; position: fixed; top: 15px; right: 15px; z-index: 1000;">
     <div onclick="toggleUserDropdown(event)"
@@ -58,6 +66,9 @@
       </button>
       <button id="playOnlineBtn" onclick="toggleOnlineMenu()"
         style="background-color: #4a90e2; width: 100%; margin-top: 10px; display: none;">Crear o Unirse</button>
+
+      <!-- Selector de Skins (Paletas y Estelas) -->
+      <div id="skinsContainer" style="width: 100%; margin-top: 15px; display: flex; flex-direction: column; gap: 10px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 12px;"></div>
 
       <!-- Rankings Desplegables -->
       <div id="startScreenRankings"
@@ -155,6 +166,10 @@
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
   <script src="js/network.js"></script>
+
+  <!-- Audio & Skins -->
+  <script src="js/audio.js"></script>
+  <script src="js/skins.js"></script>
 
   <!-- Auth -->
   <script type="module" src="js/auth/authConfig.js"></script>
