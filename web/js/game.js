@@ -642,16 +642,22 @@ window.updateRemoteBall = function (data) {
   ball.activeTrail = data.activeTrail || 'none';
   ball.color = data.color || 'white';
 
-  // Corregir posición solo si la desviación supera el umbral (evita saltos por jitter WiFi)
+  // Interpolar posición para mitigar el jitter de WiFi y lag de transmisión
   const serverX = data.x * canvas.width;
   const serverY = data.y * canvas.height;
   const desvX = serverX - ball.x;
   const desvY = serverY - ball.y;
   const desviacion = Math.sqrt(desvX * desvX + desvY * desvY);
-  const umbral = ball.r * 4; // Tolerancia: 4x el radio de la pelota
-  if (desviacion > umbral) {
+
+  // Si la pelota está exageradamente lejos (ej: reinicio o gol), corregimos al instante
+  if (desviacion > canvas.width * 0.15) {
     ball.x = serverX;
     ball.y = serverY;
+  } else {
+    // Si no, corregimos la posición de forma progresiva (lerp de 30%)
+    // Esto suaviza completamente los micro-saltos causados por WiFi o retardo de red
+    ball.x += desvX * 0.3;
+    ball.y += desvY * 0.3;
   }
 };
 
