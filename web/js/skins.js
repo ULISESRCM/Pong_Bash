@@ -251,6 +251,23 @@ const SkinManager = {
       this.currentPaddleSkin = skinId;
       localStorage.setItem('paddleSkin', skinId);
       this.updateSelectionUI('paddle');
+
+      // Actualizar paleta del jugador local
+      const myIndex = (window.network && window.network.roomId) ? (window.network.playerId - 1) : null;
+      if (myIndex !== null && window.paddles && window.paddles[myIndex]) {
+        window.paddles[myIndex].skinId = skinId;
+      } else if (window.paddles) {
+        window.paddles.forEach(p => p.skinId = skinId);
+      }
+
+      // Enviar actualización al servidor si estamos online
+      if (window.network && window.network.roomId && window.network.socket) {
+        window.network.socket.emit('change_skin', {
+          roomId: window.network.roomId,
+          playerId: window.network.playerId,
+          skinId: skinId
+        });
+      }
     }
   },
 
@@ -258,27 +275,48 @@ const SkinManager = {
     if (this.ballTrails[trailId]) {
       this.currentTrail = trailId;
       localStorage.setItem('ballTrail', trailId);
+      
       // Limpiar historial del trail anterior
       Object.values(this.ballTrails).forEach(t => {
         if (t.history) t.history = [];
         if (t.particles) t.particles = [];
       });
+
+      // Actualizar trail del jugador local
+      const myIndex = (window.network && window.network.roomId) ? (window.network.playerId - 1) : null;
+      if (myIndex !== null && window.paddles && window.paddles[myIndex]) {
+        window.paddles[myIndex].trailId = trailId;
+      } else if (window.paddles) {
+        window.paddles.forEach(p => p.trailId = trailId);
+      }
+
+      // Enviar actualización al servidor si estamos online
+      if (window.network && window.network.roomId && window.network.socket) {
+        window.network.socket.emit('change_trail', {
+          roomId: window.network.roomId,
+          playerId: window.network.playerId,
+          trailId: trailId
+        });
+      }
       this.updateSelectionUI('trail');
     }
   },
 
   drawPaddle(ctx, paddle) {
-    const skin = this.paddleSkins[this.currentPaddleSkin] || this.paddleSkins.default;
+    const skinId = paddle.skinId || 'default';
+    const skin = this.paddleSkins[skinId] || this.paddleSkins.default;
     skin.draw(ctx, paddle);
   },
 
   updateTrail(ball) {
-    const trail = this.ballTrails[this.currentTrail];
+    const activeTrailId = ball.activeTrail || 'none';
+    const trail = this.ballTrails[activeTrailId];
     if (trail && trail.update) trail.update(ball);
   },
 
   drawTrail(ctx, ball) {
-    const trail = this.ballTrails[this.currentTrail];
+    const activeTrailId = ball.activeTrail || 'none';
+    const trail = this.ballTrails[activeTrailId];
     if (trail && trail.draw) trail.draw(ctx, ball);
   },
 
