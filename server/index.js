@@ -44,7 +44,7 @@ io.on('connection', (socket) => {
 
         rooms[roomId] = {
             players: {
-                1: { id: socket.id, ready: false, name: name }
+                1: { id: socket.id, ready: false, name: name, skinId: 'default', trailId: 'none' }
             },
             status: 'waiting'
         };
@@ -82,7 +82,7 @@ io.on('connection', (socket) => {
             }
 
             if (playerId) {
-                room.players[playerId] = { id: socket.id, ready: false, name: name };
+                room.players[playerId] = { id: socket.id, ready: false, name: name, skinId: 'default', trailId: 'none' };
                 socket.join(roomId);
 
                 // Notificar al nuevo jugador con la lista completa (incluye nombres)
@@ -99,6 +99,26 @@ io.on('connection', (socket) => {
             }
         } else {
             socket.emit('error', 'Room not found');
+        }
+    });
+
+    // Cambiar Skin de Paleta
+    socket.on('change_skin', (data) => {
+        const { roomId, playerId, skinId } = data;
+        if (rooms[roomId] && rooms[roomId].players[playerId]) {
+            rooms[roomId].players[playerId].skinId = skinId;
+            socket.to(roomId).emit('player_skin_update', { playerId, skinId });
+            console.log(`Room ${roomId}: Player ${playerId} changed skin to ${skinId}`);
+        }
+    });
+
+    // Cambiar Estela de Pelota
+    socket.on('change_trail', (data) => {
+        const { roomId, playerId, trailId } = data;
+        if (rooms[roomId] && rooms[roomId].players[playerId]) {
+            rooms[roomId].players[playerId].trailId = trailId;
+            socket.to(roomId).emit('player_trail_update', { playerId, trailId });
+            console.log(`Room ${roomId}: Player ${playerId} changed trail to ${trailId}`);
         }
     });
 
@@ -135,9 +155,9 @@ io.on('connection', (socket) => {
 
     // Relay Ball Position
     socket.on('ball_update', (data) => {
-        const { roomId, x, y, vx, vy } = data;
+        const { roomId, x, y, vx, vy, activeTrail, color } = data;
         if (roomId) {
-            socket.to(roomId).emit('ball_update', { x, y, vx, vy });
+            socket.to(roomId).emit('ball_update', { x, y, vx, vy, activeTrail, color });
         }
     });
 
