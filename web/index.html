@@ -68,9 +68,6 @@
       <button id="playOnlineBtn" onclick="toggleOnlineMenu()"
         style="background-color: #4a90e2; width: 100%; margin-top: 10px; display: none;">Crear o Unirse</button>
 
-      <!-- Selector de Skins (Paletas y Estelas) -->
-      <div id="skinsContainer" style="width: 100%; margin-top: 15px; display: flex; flex-direction: column; gap: 10px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 12px;"></div>
-
       <!-- Rankings Desplegables -->
       <div id="startScreenRankings"
         style="width: 100%; margin-top: 20px; display: none; flex-direction: column; gap: 15px;">
@@ -216,9 +213,11 @@
       </div>
       <p id="waitingMessage" style="display: none; color: #999;">Esperando al anfitrión...</p>
 
+      <!-- Selector de Skins (Paletas y Estelas) -->
+      <div id="skinsContainer" style="width: 100%; margin-top: 15px; margin-bottom: 10px; display: flex; flex-direction: column; gap: 10px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 12px; max-height: 250px; overflow-y: auto;"></div>
+
       <!-- Salir de la Sala -->
-      <button onclick="leaveRoom()" style="background-color: #e74c3c; width: 100%; margin-top: 10px;">Salir de la
-        Sala</button>
+      <button onclick="leaveRoom()" style="background-color: #e74c3c; width: 100%; margin-top: 10px;">Salir de la Sala</button>
     </div>
   </div>
 

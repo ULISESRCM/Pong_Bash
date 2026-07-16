@@ -147,6 +147,8 @@ function resetGame() {
 /////////////////////////////
 
 function resetBall() {
+  ball.activeTrail = 'none';
+  ball.color = 'white';
   ballSpeed += canvas.width * 0.001; // Incremento proporcional
   const startPos = getRandomCornerPosition();
   ball.x = startPos.x;
@@ -294,9 +296,11 @@ function updateBall() {
         if (isSmash) {
           speed *= 1.5;
           ball.color = p.color;
+          ball.activeTrail = p.trailId || 'none';
         } else {
           speed *= 1.05;
           ball.color = 'white';
+          ball.activeTrail = 'none';
         }
 
         const maxSpeed = canvas.width * 0.04;
@@ -324,9 +328,11 @@ function updateBall() {
         if (isSmash) {
           speed *= 1.5;
           ball.color = p.color;
+          ball.activeTrail = p.trailId || 'none';
         } else {
           speed *= 1.05;
           ball.color = 'white';
+          ball.activeTrail = 'none';
         }
 
         const maxSpeed = canvas.width * 0.04;
@@ -355,7 +361,8 @@ function updateBall() {
       // Normalizar a 0-1 para compatibilidad entre distintos tamaños de canvas
       window.network.sendBallUpdate(
         ball.x / canvas.width, ball.y / canvas.height,
-        ball.dx / canvas.width, ball.dy / canvas.height
+        ball.dx / canvas.width, ball.dy / canvas.height,
+        ball.activeTrail || 'none', ball.color || 'white'
       );
       ball.lastSent = now;
     }
@@ -634,6 +641,11 @@ window.updateRemoteBall = function (data) {
   // Escalar velocidad normalizada al canvas local
   ball.dx = data.vx * canvas.width;
   ball.dy = data.vy * canvas.height;
+  
+  // Sincronizar estela y color
+  ball.activeTrail = data.activeTrail || 'none';
+  ball.color = data.color || 'white';
+
   // Corregir posición solo si la desviación supera el umbral (evita saltos por jitter WiFi)
   const serverX = data.x * canvas.width;
   const serverY = data.y * canvas.height;

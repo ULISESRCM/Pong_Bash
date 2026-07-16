@@ -10,6 +10,8 @@ class NetworkManager {
         this.isHost = false;
         this.connected = false;
         this.playerNames = {}; // {playerId: nombre}
+        this.playerSkins = {}; // {playerId: skinId}
+        this.playerTrails = {}; // {playerId: trailId}
     }
 
     connect() {
@@ -33,6 +35,15 @@ class NetworkManager {
             // El host se agrega a sí mismo con su propio nombre
             const myName = document.getElementById('playerName') ? document.getElementById('playerName').value.trim() : 'Jugador 1';
             this.playerNames[1] = myName || 'Jugador 1';
+
+            // Enviar skin y trail iniciales del localStorage
+            const initialSkin = localStorage.getItem('paddleSkin') || 'default';
+            const initialTrail = localStorage.getItem('ballTrail') || 'none';
+            this.playerSkins[1] = initialSkin;
+            this.playerTrails[1] = initialTrail;
+            this.socket.emit('change_skin', { roomId: this.roomId, playerId: 1, skinId: initialSkin });
+            this.socket.emit('change_trail', { roomId: this.roomId, playerId: 1, trailId: initialTrail });
+
             this.showLobby(true);
             this.addPlayerToLobby(1, false, this.playerNames[1]);
         });
@@ -44,21 +55,44 @@ class NetworkManager {
             console.log('Setup: Client', this.playerId, this.roomId);
             this.showLobby(false);
 
-            // Agregar todos los jugadores existentes (con sus nombres reales)
+            // Agregar todos los jugadores existentes (con sus nombres reales y skins/trails)
             if (data.players) {
                 for (const pId in data.players) {
                     const p = data.players[pId];
-                    this.playerNames[parseInt(pId)] = p.name || `Jugador ${pId}`;
-                    this.addPlayerToLobby(parseInt(pId), p.ready, p.name);
+                    const intPid = parseInt(pId);
+                    this.playerNames[intPid] = p.name || `Jugador ${pId}`;
+                    this.playerSkins[intPid] = p.skinId || 'default';
+                    this.playerTrails[intPid] = p.trailId || 'none';
+                    this.addPlayerToLobby(intPid, p.ready, p.name);
                 }
             } else {
                 console.warn('No players list received from server!');
             }
+
+            // Enviar mi skin y trail iniciales del localStorage
+            const initialSkin = localStorage.getItem('paddleSkin') || 'default';
+            const initialTrail = localStorage.getItem('ballTrail') || 'none';
+            this.playerSkins[this.playerId] = initialSkin;
+            this.playerTrails[this.playerId] = initialTrail;
+            this.socket.emit('change_skin', { roomId: this.roomId, playerId: this.playerId, skinId: initialSkin });
+            this.socket.emit('change_trail', { roomId: this.roomId, playerId: this.playerId, trailId: initialTrail });
         });
 
         this.socket.on('player_joined', (data) => {
             this.playerNames[data.playerId] = data.name || `Jugador ${data.playerId}`;
+            this.playerSkins[data.playerId] = data.skinId || 'default';
+            this.playerTrails[data.playerId] = data.trailId || 'none';
             this.addPlayerToLobby(data.playerId, false, data.name);
+        });
+
+        this.socket.on('player_skin_update', (data) => {
+            this.playerSkins[data.playerId] = data.skinId;
+            console.log(`Updated player ${data.playerId} skin to ${data.skinId}`);
+        });
+
+        this.socket.on('player_trail_update', (data) => {
+            this.playerTrails[data.playerId] = data.trailId;
+            console.log(`Updated player ${data.playerId} trail to ${data.trailId}`);
         });
 
         this.socket.on('player_ready_update', (data) => {
@@ -108,6 +142,20 @@ class NetworkManager {
             if (window.updatePlayerNames) {
                 const names = defaultNames.map((def, i) => this.playerNames[i + 1] || def);
                 window.updatePlayerNames(names);
+            }
+
+            // Sincronizar skins y trails de cada jugador a sus paletas correspondientes
+            if (window.paddles) {
+                window.paddles.forEach((p, idx) => {
+                    const pId = idx + 1;
+                    p.skinId = this.playerSkins[pId] || 'default';
+                    p.trailId = this.playerTrails[pId] || 'none';
+                });
+            }
+
+            // La pelota siempre arranca sin estela al iniciar
+            if (window.ball) {
+                window.ball.activeTrail = 'none';
             }
 
             document.getElementById('onlineMenu').style.display = 'none';
@@ -366,11 +414,11 @@ class NetworkManager {
         }
     }
 
-    sendBallUpdate(x, y, vx, vy) {
+    sendBallUpdate(x, y, vx, vy, activeTrail, color) {
         if (this.connected && this.roomId && this.isHost) {
             this.socket.emit('ball_update', {
                 roomId: this.roomId,
-                x, y, vx, vy
+                x, y, vx, vy, activeTrail, color
             });
         }
     }
