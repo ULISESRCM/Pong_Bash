@@ -252,10 +252,15 @@ const SkinManager = {
       localStorage.setItem('paddleSkin', skinId);
       this.updateSelectionUI('paddle');
 
-      // Actualizar paleta del jugador local
+      // Actualizar paleta del jugador local y caché de red
       const myIndex = (window.network && window.network.roomId) ? (window.network.playerId - 1) : null;
-      if (myIndex !== null && window.paddles && window.paddles[myIndex]) {
-        window.paddles[myIndex].skinId = skinId;
+      if (myIndex !== null) {
+        if (window.paddles && window.paddles[myIndex]) {
+          window.paddles[myIndex].skinId = skinId;
+        }
+        if (window.network) {
+          window.network.playerSkins[window.network.playerId] = skinId;
+        }
       } else if (window.paddles) {
         window.paddles.forEach(p => p.skinId = skinId);
       }
@@ -282,10 +287,15 @@ const SkinManager = {
         if (t.particles) t.particles = [];
       });
 
-      // Actualizar trail del jugador local
+      // Actualizar trail del jugador local y caché de red
       const myIndex = (window.network && window.network.roomId) ? (window.network.playerId - 1) : null;
-      if (myIndex !== null && window.paddles && window.paddles[myIndex]) {
-        window.paddles[myIndex].trailId = trailId;
+      if (myIndex !== null) {
+        if (window.paddles && window.paddles[myIndex]) {
+          window.paddles[myIndex].trailId = trailId;
+        }
+        if (window.network) {
+          window.network.playerTrails[window.network.playerId] = trailId;
+        }
       } else if (window.paddles) {
         window.paddles.forEach(p => p.trailId = trailId);
       }
