@@ -15,6 +15,8 @@ class NetworkManager {
     }
 
     connect() {
+        if (this.socket) return; // Evitar múltiples conexiones concurrentes
+
         // Detección inteligente del servidor a conectar
         const isLocalWeb = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') && !window.Capacitor;
         const serverUrl = isLocalWeb ? 'http://localhost:3000' : PRODUCTION_SERVER_URL;
@@ -569,3 +571,6 @@ class NetworkManager {
 
 const networkManager = new NetworkManager();
 window.network = networkManager;
+
+// Iniciar precalentamiento inmediato del backend en segundo plano al cargar el archivo
+networkManager.connect();
