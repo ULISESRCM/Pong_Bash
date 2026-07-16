@@ -295,11 +295,9 @@ function updateBall() {
         // SMASH: boost de velocidad si la paleta estaba en movimiento
         if (isSmash) {
           speed *= 1.5;
-          ball.color = p.color;
           ball.activeTrail = p.trailId || 'none';
         } else {
           speed *= 1.05;
-          ball.color = 'white';
           ball.activeTrail = 'none';
         }
 
@@ -327,11 +325,9 @@ function updateBall() {
 
         if (isSmash) {
           speed *= 1.5;
-          ball.color = p.color;
           ball.activeTrail = p.trailId || 'none';
         } else {
           speed *= 1.05;
-          ball.color = 'white';
           ball.activeTrail = 'none';
         }
 
