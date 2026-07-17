@@ -25,6 +25,28 @@ const io = new Server(server, {
 });
 
 const rooms = {};
+const roomCreationsByIp = {}; // { ip: [timestamp1, timestamp2, ...] }
+const RATE_LIMIT_WINDOW_MS = 60000; // 1 minuto
+const MAX_CREATIONS_PER_WINDOW = 3; // Máximo 3 salas por minuto
+
+function getClientIp(socket) {
+    const forwarded = socket.handshake.headers['x-forwarded-for'];
+    if (forwarded) {
+        return forwarded.split(',')[0].trim();
+    }
+    return socket.handshake.address;
+}
+
+// Limpiador periódico para evitar fugas de memoria
+setInterval(() => {
+    const now = Date.now();
+    for (const ip in roomCreationsByIp) {
+        roomCreationsByIp[ip] = roomCreationsByIp[ip].filter(t => now - t < RATE_LIMIT_WINDOW_MS);
+        if (roomCreationsByIp[ip].length === 0) {
+            delete roomCreationsByIp[ip];
+        }
+    }
+}, 300000); // Cada 5 minutos
 
 // Helper to generate 4-digit room code
 function generateRoomId() {
@@ -36,6 +58,25 @@ io.on('connection', (socket) => {
 
     // Crear nueva sala
     socket.on('create_room', (data) => {
+        const ip = getClientIp(socket);
+        const now = Date.now();
+
+        // Inicializar si no existe y filtrar marcas de tiempo obsoletas
+        if (!roomCreationsByIp[ip]) {
+            roomCreationsByIp[ip] = [];
+        }
+        roomCreationsByIp[ip] = roomCreationsByIp[ip].filter(t => now - t < RATE_LIMIT_WINDOW_MS);
+
+        // Validar límite
+        if (roomCreationsByIp[ip].length >= MAX_CREATIONS_PER_WINDOW) {
+            socket.emit('error', 'Límite de creación de salas excedido. Por favor, espera un minuto para crear otra.');
+            console.warn(`Abuso detectado: IP ${ip} intentó crear una sala excediendo el límite.`);
+            return;
+        }
+
+        // Registrar creación
+        roomCreationsByIp[ip].push(now);
+
         const name = (data && data.name) ? String(data.name).trim().slice(0, 20) : 'Jugador 1';
         let roomId = generateRoomId();
         while (rooms[roomId]) {
@@ -51,7 +92,7 @@ io.on('connection', (socket) => {
 
         socket.join(roomId);
         socket.emit('room_created', { roomId, playerId: 1 });
-        console.log(`Room ${roomId} created by ${socket.id} (${name})`);
+        console.log(`Room ${roomId} created by ${socket.id} (${name}) de IP ${ip}`);
     });
 
     // Unirse a una sala existente
