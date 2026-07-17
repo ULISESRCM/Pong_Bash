@@ -70,10 +70,21 @@ function drawLives() {
 
   livesBar.style.fontSize = fontSize + 'px';
 
-  livesBar.innerHTML = paddles.map((p, index) => {
-    const playerName = playerNames[index] || `Jugador ${index + 1}`;
-    return `<span style="color:${p.color};margin:0 ${spacing}px;">❤ ${playerName}: ${p.lives > 0 ? p.lives : 0}</span>`;
-  }).join('');
+  // Mostrar únicamente jugadores activos según el modo de juego
+  const activeIds = window.activePlayerIds || [1, 2, 3, 4];
+  const listItems = [];
+  paddles.forEach((p, index) => {
+    const pId = index + 1;
+    if (activeIds.includes(pId)) {
+      let nameIndex = index;
+      if (window.playerCount === 2 && index === 2) {
+        nameIndex = 1; // El segundo jugador conectado es player 2
+      }
+      const playerName = playerNames[nameIndex] || `Jugador ${index + 1}`;
+      listItems.push(`<span style="color:${p.color};margin:0 ${spacing}px;">❤ ${playerName}: ${p.lives > 0 ? p.lives : 0}</span>`);
+    }
+  });
+  livesBar.innerHTML = listItems.join('');
 }
 
 // Auxiliar para actualizar los elementos de la interfaz de acuerdo al estado de login

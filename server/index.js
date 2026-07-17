@@ -180,14 +180,18 @@ io.on('connection', (socket) => {
                 isReady: rooms[roomId].players[playerId].ready
             });
 
-            // Autostart si todos los 4 jugadores conectados en la sala están listos
+            // Autostart si todos los jugadores conectados (mínimo 2) están listos
             const room = rooms[roomId];
             const players = Object.values(room.players);
+            const playerIds = Object.keys(room.players).map(Number);
             const allReady = players.every(p => p.ready);
-            if (allReady && players.length === 4) {
-                io.to(roomId).emit('game_started');
+            if (allReady && players.length >= 2) {
+                io.to(roomId).emit('game_started', {
+                    playerCount: players.length,
+                    playerIds: playerIds
+                });
                 room.status = 'playing';
-                console.log(`Game automatically started in room ${roomId} (all players ready)`);
+                console.log(`Game automatically started in room ${roomId} (${players.length} players, all ready)`);
             }
         }
     });
@@ -220,11 +224,22 @@ io.on('connection', (socket) => {
     socket.on('start_game', (data) => {
         const { roomId } = data;
         if (roomId && rooms[roomId]) {
-            // Check if all players are ready? Optional.
-            // For now, let host force start.
-            io.to(roomId).emit('game_started');
-            rooms[roomId].status = 'playing';
-            console.log(`Game started in room ${roomId}`);
+            const room = rooms[roomId];
+            const playerCount = Object.keys(room.players).length;
+            const playerIds = Object.keys(room.players).map(Number);
+
+            // Validar mínimo 2 jugadores
+            if (playerCount < 2) {
+                socket.emit('need_more_players', { roomId });
+                return;
+            }
+
+            io.to(roomId).emit('game_started', {
+                playerCount: playerCount,
+                playerIds: playerIds
+            });
+            room.status = 'playing';
+            console.log(`Game started in room ${roomId} with ${playerCount} players`);
         }
     });
 

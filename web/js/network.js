@@ -143,7 +143,46 @@ class NetworkManager {
         });
 
 
-        this.socket.on('game_started', () => {
+        // Evento: necesita más jugadores para iniciar
+        this.socket.on('need_more_players', () => {
+            if (window.Swal) {
+                Swal.fire({
+                    title: '¡Invitá a un amigo!',
+                    html: `<p style="margin-bottom:12px;">Necesitás al menos <b>2 jugadores</b> para iniciar la partida.</p>
+                           <p style="color:#aaa; font-size:13px;">Compartí el link del juego y el código de sala: <b style="color:#f1c40f; font-size:16px;">${this.roomId}</b></p>`,
+                    icon: 'info',
+                    background: '#121212',
+                    color: '#fff',
+                    showCancelButton: true,
+                    confirmButtonText: '📤 Compartir',
+                    cancelButtonText: 'Cerrar',
+                    confirmButtonColor: '#4a90e2',
+                }).then((result) => {
+                    if (result.isConfirmed && navigator.share) {
+                        navigator.share({
+                            title: 'Pong Bash - ¡Jugá conmigo!',
+                            text: `¡Unite a mi sala en Pong Bash! Código de sala: ${this.roomId}`,
+                            url: 'https://pongbash.web.app'
+                        }).catch(() => {});
+                    } else if (result.isConfirmed) {
+                        // Fallback: copiar al portapapeles
+                        navigator.clipboard.writeText(`¡Unite a mi sala en Pong Bash! Código: ${this.roomId} - https://pongbash.web.app`).then(() => {
+                            window.showAlert('¡Copiado!', 'Link y código copiados al portapapeles.', 'success');
+                        });
+                    }
+                });
+            } else {
+                window.showAlert('¡Invitá a un amigo!', `Necesitás al menos 2 jugadores. Código de sala: ${this.roomId}`, 'info');
+            }
+        });
+
+        this.socket.on('game_started', (data) => {
+            // Configurar modo de juego según cantidad de jugadores
+            const playerCount = (data && data.playerCount) || 4;
+            const playerIds = (data && data.playerIds) || [1, 2, 3, 4];
+            window.playerCount = playerCount;
+            window.activePlayerIds = playerIds;
+
             // Exportar nombres reales al array global antes de iniciar el juego
             const defaultNames = ['Rojo', 'Azul', 'Amarillo', 'Verde'];
             if (window.updatePlayerNames) {
@@ -154,7 +193,11 @@ class NetworkManager {
             // Sincronizar skins y trails de cada jugador a sus paletas correspondientes
             if (window.paddles) {
                 window.paddles.forEach((p, idx) => {
-                    const pId = idx + 1;
+                    let pId = idx + 1;
+                    // En modo 2 jugadores, mapear el jugador 3 (bottom) al skin del jugador 2 (cliente)
+                    if (window.playerCount === 2 && pId === 3) {
+                        pId = 2;
+                    }
                     p.skinId = this.playerSkins[pId] || 'default';
                     p.trailId = this.playerTrails[pId] || 'none';
                 });
@@ -183,7 +226,12 @@ class NetworkManager {
             // rotate( 90deg) = CW visual  → lado DERECHO queda abajo   (Blue)
             // rotate(-90deg) = CCW visual → lado IZQUIERDO queda abajo (Green)
             const rotacionPorJugador = { 1: 180, 2: 90, 3: 0, 4: -90 };
-            const grados = this.playerId ? (rotacionPorJugador[this.playerId] || 0) : 0;
+            let actualPlayerId = this.playerId;
+            // En modo 2 jugadores, mapear el cliente (player 2) al ID de paleta 3 (bottom) para que rote a 0° (su paleta queda abajo)
+            if (window.playerCount === 2 && actualPlayerId === 2) {
+                actualPlayerId = 3;
+            }
+            const grados = actualPlayerId ? (rotacionPorJugador[actualPlayerId] || 0) : 0;
             window.canvasRotation = grados;
             if (window.canvas) {
                 window.canvas.style.transition = 'transform 0.4s ease';
@@ -402,6 +450,24 @@ class NetworkManager {
 
         const isMe = pId === this.playerId;
         li.innerHTML = this.renderPlayerRow(pId, displayName, isMe, isReady);
+
+        // Actualizar indicador de modo de juego
+        this.updateModeIndicator();
+    }
+
+    updateModeIndicator() {
+        const indicator = document.getElementById('gameModeIndicator');
+        if (!indicator) return;
+        const playerCount = document.getElementById('lobbyPlayerList').children.length;
+        if (playerCount >= 4) {
+            indicator.textContent = '🏆 Modo Competitivo (con ranking)';
+            indicator.style.color = '#f1c40f';
+            indicator.style.borderColor = 'rgba(241,196,15,0.3)';
+        } else {
+            indicator.textContent = '⚠️ Modo Casual (sin ranking)';
+            indicator.style.color = '#aaa';
+            indicator.style.borderColor = 'rgba(255,255,255,0.1)';
+        }
     }
 
     toggleReady() {
@@ -515,6 +581,16 @@ class NetworkManager {
     async updateLocalPlayerElo(winnerIndex) {
         const deltaEl = document.getElementById('pointsDeltaDisplay');
         if (deltaEl) deltaEl.style.display = 'none'; // ocultar por defecto
+
+        // No actualizar ranking ni WR en modos casuales (menos de 4 jugadores)
+        if (window.playerCount < 4) {
+            if (deltaEl) {
+                deltaEl.textContent = 'Modo Casual (sin ranking)';
+                deltaEl.style.color = '#aaa';
+                deltaEl.style.display = 'block';
+            }
+            return;
+        }
 
         if (!window.authService) return;
 

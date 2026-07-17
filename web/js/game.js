@@ -16,6 +16,11 @@ let ballSpeed = 5;
 let noGoalTimer = null;
 const noGoalTimeout = 30000; // 30 segundos sin gol => aumento de velocidad
 
+// 🎮 Modo de juego: jugadores activos (por defecto los 4)
+window.activePlayerIds = [1, 2, 3, 4];
+window.playerCount = 4;
+window.goalFlash = null; // Efecto visual de gol
+
 // 🎯 Configuración proporcional (se calculará dinámicamente)
 let paddleLength, thickness, speed, cornerWallLong, ballRadius;
 
@@ -132,12 +137,29 @@ function resetGame() {
     { x: canvas.width - thickness, y: canvas.height - cornerWallLong, w: thickness, h: cornerWallLong }
   );
 
+  // 🎮 Cerrar lados de jugadores inactivos según el modo de juego
+  const allSides = [1, 2, 3, 4]; // playerIds posibles
+  // En modo 2 jugadores, forzar que los IDs activos sean [1, 3] (arriba y abajo enfrentados)
+  let activeIds = window.activePlayerIds || [1, 2, 3, 4];
+  if (window.playerCount === 2) {
+      activeIds = [1, 3];
+  }
+  const sideMap = { 1: 'top', 2: 'left', 3: 'bottom', 4: 'right' };
+  allSides.forEach(id => {
+    if (!activeIds.includes(id)) {
+      const idx = id - 1;
+      paddles[idx].lives = 0;
+      closeWall(sideMap[id]);
+    }
+  });
 
+  // Resetear efecto de gol
+  window.goalFlash = null;
 
   // Resetear velocidad base
   ballSpeed = canvas.width * 0.012; // Velocidad base proporcional
 
-  gameOver = false; // Resetear variable local (window.gameOver no es la misma)
+  gameOver = false;
   resetBall();
   window.startCountdown();
 }
@@ -206,12 +228,13 @@ function gameLoop() {
   drawWalls();
   drawPaddles();
   drawBall();
+  drawGoalEffect(); // Efecto visual de flash al anotar gol
   drawCountdown(); // Dibujar el conteo encima de todo
 
   if (!gameOver) {
     requestAnimationFrame(gameLoop);
   } else {
-    window.loopRunning = false; // Permite reiniciar el loop en la próxima partida
+    window.loopRunning = false;
   }
 }
 
@@ -472,6 +495,14 @@ function removeLife(index, side) {
   const p = paddles[index];
   if (p.lives > 0) {
     p.lives--;
+
+    // Activar efecto visual de flash en el arco donde salió la pelota
+    window.goalFlash = {
+      side: ['top', 'left', 'bottom', 'right'][index],
+      startTime: Date.now(),
+      color: p.color
+    };
+
     if (p.lives === 0) {
       closeWall(side);
       if (!window.eliminationOrder) window.eliminationOrder = [];
@@ -548,6 +579,55 @@ function drawWalls() {
   cornerWalls.forEach(w => ctx.fillRect(w.x, w.y, w.w, w.h));
 }
 
+function drawGoalEffect() {
+  if (!window.goalFlash) return;
+  const elapsed = Date.now() - window.goalFlash.startTime;
+  const duration = 600; // ms
+  if (elapsed > duration) {
+    window.goalFlash = null;
+    return;
+  }
+
+  const alpha = 1 - (elapsed / duration); // Se desvanece de 1 a 0
+  const side = window.goalFlash.side;
+  const color = window.goalFlash.color;
+
+  ctx.save();
+  ctx.globalAlpha = alpha * 0.5;
+
+  // Crear un gradiente que se desvanece hacia el centro del campo
+  let gradient;
+  const glowSize = canvas.width * 0.15;
+
+  if (side === 'top') {
+    gradient = ctx.createLinearGradient(0, 0, 0, glowSize);
+    gradient.addColorStop(0, color);
+    gradient.addColorStop(1, 'transparent');
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, canvas.width, glowSize);
+  } else if (side === 'bottom') {
+    gradient = ctx.createLinearGradient(0, canvas.height, 0, canvas.height - glowSize);
+    gradient.addColorStop(0, color);
+    gradient.addColorStop(1, 'transparent');
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, canvas.height - glowSize, canvas.width, glowSize);
+  } else if (side === 'left') {
+    gradient = ctx.createLinearGradient(canvas.width, 0, canvas.width - glowSize, 0);
+    gradient.addColorStop(0, color);
+    gradient.addColorStop(1, 'transparent');
+    ctx.fillStyle = gradient;
+    ctx.fillRect(canvas.width - glowSize, 0, glowSize, canvas.height);
+  } else if (side === 'right') {
+    gradient = ctx.createLinearGradient(0, 0, glowSize, 0);
+    gradient.addColorStop(0, color);
+    gradient.addColorStop(1, 'transparent');
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, glowSize, canvas.height);
+  }
+
+  ctx.restore();
+}
+
 function drawBall() {
   if (window.ballRespawnTimerActive) {
     const blinkPeriod = 200; // parpadea cada 200ms
@@ -576,8 +656,10 @@ function movePaddles() {
     // 🌐 ONLINE LOGIC: Identify if this paddle is mine or remote
     let isMyPaddle = true;
     if (window.network && window.network.roomId) {
-      const netId = parseInt(window.network.playerId);
-      if (!isNaN(netId) && netId !== (index + 1)) {
+      let netId = parseInt(window.network.playerId);
+      // En modo 2 jugadores, el jugador 2 (cliente) controla la paleta 3 (bottom, index 2)
+      const gamePlayerId = (window.playerCount === 2 && netId === 2) ? 3 : netId;
+      if (!isNaN(netId) && gamePlayerId !== (index + 1)) {
         isMyPaddle = false;
       }
     }
@@ -624,7 +706,9 @@ function movePaddles() {
 // 🌐 ONLINE HELPERS
 window.updateRemotePaddle = function (playerId, x, y) {
   if (!window.paddles) return;
-  const p = window.paddles[playerId - 1];
+  // En modo 2 jugadores, mapear el jugador 2 (cliente) a la paleta 3 (bottom, index 2)
+  const gamePlayerId = (window.playerCount === 2 && playerId === 2) ? 3 : playerId;
+  const p = window.paddles[gamePlayerId - 1];
   if (p) {
     // Escalar coordenadas normalizadas al canvas local
     if (p.w > p.h) p.targetX = x * canvas.width;
