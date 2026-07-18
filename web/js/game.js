@@ -326,6 +326,14 @@ function gameLoop(timestamp) {
   drawGoalEffect(); // Efecto visual de flash al anotar gol
   drawCountdown(); // Dibujar el conteo encima de todo
 
+  // 📡 Diagnóstico de red (solo online, mientras se depura la sincronización)
+  if (window.network && window.network.roomId) {
+    if (!window.netStats) window.netStats = { snaps: 0 };
+    const fpsNow = 1000 / Math.max(elapsed, 1);
+    window.netStats.fps = window.netStats.fps ? window.netStats.fps * 0.9 + fpsNow * 0.1 : fpsNow;
+    drawNetDebug();
+  }
+
   if (!gameOver) {
     requestAnimationFrame(gameLoop);
   } else {
@@ -402,6 +410,12 @@ function updateGuestBall() {
   const renderTime = Date.now() - 120; // mismo delay que las paletas remotas
   const W = canvas.width, H = canvas.height;
 
+  // Diagnóstico de red en pantalla
+  if (!window.netStats) window.netStats = { snaps: 0 };
+  const ns = window.netStats;
+  ns.buf = buf.length;
+  ns.age = Date.now() - buf[buf.length - 1].time;
+
   let s1 = null, s2 = null;
   for (let i = 0; i < buf.length; i++) {
     if (buf[i].time <= renderTime) {
@@ -411,6 +425,8 @@ function updateGuestBall() {
       break;
     }
   }
+
+  ns.mode = s1 && s2 ? 'interp' : (s1 ? 'EXTRAP' : 'wait');
 
   if (s1 && s2) {
     // ¿Rebote entre snapshots? (la velocidad cambió de signo)
@@ -427,6 +443,7 @@ function updateGuestBall() {
 
     if (bounced || teleported) {
       // Interpolar en línea recta cruzaría paletas/paredes: saltar al estado nuevo
+      ns.snaps++;
       ball.x = s2.x * W;
       ball.y = s2.y * H;
     } else {
@@ -455,6 +472,31 @@ function updateGuestBall() {
     ball.dx = buf[0].vx * W;
     ball.dy = buf[0].vy * H;
   }
+}
+
+// 📡 Panel de diagnóstico de red: RTT al servidor, fps reales, y en el invitado
+// el estado del buffer de interpolación. Sirve para distinguir un bug de código
+// de un problema de red (jitter/latencia). Quitar cuando se estabilice el online.
+function drawNetDebug() {
+  const s = window.netStats;
+  if (!s) return;
+
+  const isHost = window.network && window.network.isHost;
+  const rtt = s.rtt !== undefined ? `${s.rtt}ms (max ${s.rttMax}ms)` : 'sin dato';
+  const fps = s.fps ? Math.round(s.fps) : '-';
+
+  let line = `RTT ${rtt} | ${fps}fps | ${isHost ? 'HOST' : 'INVITADO'}`;
+  if (!isHost) {
+    line += ` | buf ${s.buf || 0} | ${s.mode || '-'} | snaps ${s.snaps || 0} | edad ${s.age !== undefined ? s.age + 'ms' : '-'}`;
+  }
+
+  ctx.save();
+  ctx.font = `bold ${Math.max(11, canvas.width * 0.018)}px monospace`;
+  ctx.fillStyle = 'rgba(0, 255, 140, 0.85)';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'top';
+  ctx.fillText(line, canvas.width * 0.02, canvas.height * 0.02);
+  ctx.restore();
 }
 
 // Helper de colisión AABB simple para círculo vs rect
@@ -915,6 +957,24 @@ window.updateRemoteBall = function (data) {
   // cambia de tamaño entre recibir y dibujar (barra del navegador móvil,
   // rotación, scroll), un snapshot escalado quedaría en píxeles viejos y la
   // pelota se dibujaría fuera de la cancha.
+
+  // Línea de tiempo con el RELOJ DEL HOST: si estampáramos con la hora de
+  // llegada, el jitter de la red (paquetes que llegan en ráfagas) deformaría
+  // los intervalos y la interpolación daría tirones aunque el host emita
+  // parejo cada 33ms. Se estima el offset host→local con el mínimo observado
+  // (el paquete más rápido) y una recuperación lenta por si cambia la ruta.
+  const now = Date.now();
+  let time = now;
+  if (typeof data.t === 'number') {
+    const offset = now - data.t;
+    if (window.ballTimeOffset === undefined || offset < window.ballTimeOffset) {
+      window.ballTimeOffset = offset;
+    } else {
+      window.ballTimeOffset += 1; // deriva lenta hacia arriba (~30ms/s a 30 paquetes/s)
+    }
+    time = data.t + window.ballTimeOffset;
+  }
+
   window.ballBuffer.push({
     x: data.x,
     y: data.y,
@@ -922,7 +982,7 @@ window.updateRemoteBall = function (data) {
     vy: data.vy,
     activeTrail: data.activeTrail || 'none',
     color: data.color || 'white',
-    time: Date.now()
+    time
   });
 
   if (window.ballBuffer.length > 30) {

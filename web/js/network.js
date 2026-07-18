@@ -26,6 +26,25 @@ class NetworkManager {
         });
     }
 
+    // Mide RTT al servidor cada 2s (con ack) y guarda estadísticas en window.netStats
+    // para el panel de diagnóstico en pantalla.
+    startPingMonitor() {
+        if (this._pingInterval) return;
+        if (!window.netStats) window.netStats = { snaps: 0 };
+        this._pingInterval = setInterval(() => {
+            if (!this.socket || !this.connected) return;
+            const t0 = Date.now();
+            this.socket.timeout(5000).emit('ping_check', (err) => {
+                if (err) return; // servidor viejo sin handler: RTT queda sin dato
+                const rtt = Date.now() - t0;
+                const s = window.netStats;
+                s.rtt = rtt;
+                s.rttHist = (s.rttHist || []).concat(rtt).slice(-8);
+                s.rttMax = Math.max(...s.rttHist);
+            });
+        }, 2000);
+    }
+
     connect() {
         if (this.socket) return; // Evitar múltiples conexiones concurrentes
 
@@ -42,6 +61,7 @@ class NetworkManager {
         this.socket.on('connect', () => {
             console.log('Connected to server');
             this.connected = true;
+            this.startPingMonitor();
         });
 
         this.socket.on('disconnect', (reason) => {
@@ -785,7 +805,8 @@ class NetworkManager {
         if (this.connected && this.roomId && this.isHost) {
             this.socket.emit('ball_update', {
                 roomId: this.roomId,
-                x, y, vx, vy, activeTrail, color
+                x, y, vx, vy, activeTrail, color,
+                t: Date.now() // reloj del host: el invitado reconstruye la línea de tiempo con esto
             });
         }
     }

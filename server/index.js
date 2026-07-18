@@ -213,10 +213,15 @@ io.on('connection', (socket) => {
 
     // Relay Ball Position
     socket.on('ball_update', (data) => {
-        const { roomId, x, y, vx, vy, activeTrail, color } = data;
+        const { roomId, x, y, vx, vy, activeTrail, color, t } = data;
         if (roomId) {
-            socket.to(roomId).emit('ball_update', { x, y, vx, vy, activeTrail, color });
+            socket.to(roomId).emit('ball_update', { x, y, vx, vy, activeTrail, color, t });
         }
+    });
+
+    // Medición de RTT desde el cliente (responde el ack inmediatamente)
+    socket.on('ping_check', (cb) => {
+        if (typeof cb === 'function') cb();
     });
 
     // Relay Life Update (Game State)
