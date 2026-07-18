@@ -208,14 +208,7 @@ function gameLoop() {
 function updateBall() {
   if (gameOver) return;
 
-  // 🌐 ONLINE: Clientes extrapolan localmente — el host corrige cada ~33ms
-  if (window.network && window.network.roomId && !window.network.isHost) {
-    // Extrapolación simple: mover con la velocidad conocida (60fps suave)
-    // El host manda correcciones a 30fps que snap directo sin lerp
-    ball.x += ball.dx;
-    ball.y += ball.dy;
-    return;
-  }
+  const isOnlineGuest = window.network && window.network.roomId && !window.network.isHost;
 
   // Movimiento
   ball.x += ball.dx;
@@ -312,6 +305,11 @@ function updateBall() {
       }
     }
   });
+
+  // 🌐 ONLINE: el invitado predice los rebotes localmente (misma física que el host)
+  // para que la pelota no atraviese paletas/paredes en su pantalla. No decide goles
+  // ni vidas: eso lo maneja el host en exclusiva y llega vía 'life_update'.
+  if (isOnlineGuest) return;
 
   checkGoal();
 
