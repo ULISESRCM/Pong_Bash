@@ -88,9 +88,17 @@ function calculateDimensions() {
 function resetGame() {
   window.eliminationOrder = [];
   resizeCanvas();
-  if (canvas) canvas.style.display = 'block';
+  if (canvas) {
+    canvas.style.display = 'block';
+    canvas.offsetHeight; // Forzar reflow
+    canvas.classList.add('visible');
+  }
   const lb = document.getElementById('livesBar');
-  if (lb) lb.style.display = 'flex';
+  if (lb) {
+    lb.style.display = 'flex';
+    lb.offsetHeight; // Forzar reflow
+    lb.classList.add('visible');
+  }
 
   // Reposicionar paletas (alineadas al borde) - USANDO GROSOR UNIFICADO
   paddles[0].x = cornerWallLong;
@@ -123,6 +131,7 @@ function resetGame() {
 
   // Resetear vidas a 5
   paddles.forEach(p => p.lives = 5);
+  window.previousLives = [5, 5, 5, 5];
 
   // Paredes de esquina iniciales
   cornerWalls.length = 0;
@@ -527,6 +536,9 @@ function removeLife(index, side) {
       window.network.sendGameOver(ganadorIndex);
     }
 
+    // Ocultar cancha y vidas con transición
+    if (window.stopGame) window.stopGame();
+
     setTimeout(() => {
       const ganadorIndex = paddles.indexOf(vivos[0]);
       const nombreGanador = (window.playerNames && window.playerNames[ganadorIndex]) || ["Rojo", "Azul", "Amarillo", "Verde"][ganadorIndex];
@@ -534,7 +546,8 @@ function removeLife(index, side) {
       document.getElementById('startScreen').style.display = 'flex';
       document.getElementById('startContent').style.display = 'none';
       document.getElementById('endContent').style.display = 'flex';
-    }, 400);
+    }, 600);
+    return;
   }
 
   resetBall();
@@ -782,6 +795,9 @@ window.updateRemoteLife = function (playerId, lives) {
         window.network.sendGameOver(ganadorIndex);
       }
 
+      // Ocultar cancha y vidas con transición
+      if (window.stopGame) window.stopGame();
+
       setTimeout(() => {
         const ganadorIndex = paddles.indexOf(vivos[0]);
         const nombreGanador = (window.playerNames && window.playerNames[ganadorIndex]) || ["Rojo", "Azul", "Amarillo", "Verde"][ganadorIndex];
@@ -789,7 +805,7 @@ window.updateRemoteLife = function (playerId, lives) {
         document.getElementById('startScreen').style.display = 'flex';
         document.getElementById('startContent').style.display = 'none';
         document.getElementById('endContent').style.display = 'flex';
-      }, 400);
+      }, 600);
     }
   }
 
@@ -865,13 +881,25 @@ window.stopGame = function() {
   window.countdownActive = false;
   window.countdownVal = null;
   
-  // Limpiar y ocultar el canvas
-  if (ctx && canvas) {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    canvas.style.display = 'none';
+  // Transición de salida para canvas y livesBar
+  if (canvas) {
+    canvas.classList.remove('visible');
   }
   const lb = document.getElementById('livesBar');
-  if (lb) lb.style.display = 'none';
+  if (lb) {
+    lb.classList.remove('visible');
+  }
+
+  setTimeout(() => {
+    // Solo si el canvas sigue oculto (por si se reinició una partida rápido)
+    if (canvas && !canvas.classList.contains('visible')) {
+      canvas.style.display = 'none';
+      if (ctx) ctx.clearRect(0, 0, canvas.width, canvas.height);
+    }
+    if (lb && !lb.classList.contains('visible')) {
+      lb.style.display = 'none';
+    }
+  }, 600);
 };
 
 // Ocultar por defecto al cargar

@@ -62,16 +62,18 @@ function leaveRoom() {
 // Dibujar vidas en la barra con tamaño adaptativo
 function drawLives() {
   const livesBar = document.getElementById('livesBar');
-  const canvas = window.canvas;
-
-  // Calcular tamaño de fuente basado en el tamaño del canvas
-  const fontSize = Math.max(12, canvas.width * 0.025);
-  const spacing = canvas.width * 0.02;
-
-  livesBar.style.fontSize = fontSize + 'px';
+  if (!livesBar) return;
 
   // Mostrar únicamente jugadores activos según el modo de juego
-  const activeIds = window.activePlayerIds || [1, 2, 3, 4];
+  let activeIds = window.activePlayerIds || [1, 2, 3, 4];
+  if (window.playerCount === 2) {
+      activeIds = [1, 3];
+  }
+
+  if (!window.previousLives) {
+      window.previousLives = [5, 5, 5, 5];
+  }
+
   const listItems = [];
   paddles.forEach((p, index) => {
     const pId = index + 1;
@@ -81,7 +83,32 @@ function drawLives() {
         nameIndex = 1; // El segundo jugador conectado es player 2
       }
       const playerName = playerNames[nameIndex] || `Jugador ${index + 1}`;
-      listItems.push(`<span style="color:${p.color};margin:0 ${spacing}px;">❤ ${playerName}: ${p.lives > 0 ? p.lives : 0}</span>`);
+      
+      // Obtener vidas anteriores para comparar y animar pérdida
+      const prevL = window.previousLives[index] !== undefined ? window.previousLives[index] : p.lives;
+      
+      let dotsHtml = '';
+      for (let i = 1; i <= 5; i++) {
+          let dotClass = '';
+          if (i <= p.lives) {
+              dotClass = 'active';
+          } else if (i === p.lives + 1 && prevL > p.lives) {
+              dotClass = 'lost'; // Animación de pérdida de vida
+          }
+          dotsHtml += `<span class="dot ${dotClass}" style="--player-color: ${p.color}"></span>`;
+      }
+
+      listItems.push(`
+        <div class="player-life-pill" style="border-color: rgba(${p.color === 'red' ? '255, 77, 77' : p.color === 'blue' ? '74, 144, 226' : p.color === 'yellow' ? '241, 196, 15' : '46, 204, 113'}, 0.2)">
+          <span class="player-name" style="color: ${p.color}">${playerName}</span>
+          <div class="player-dots">
+            ${dotsHtml}
+          </div>
+        </div>
+      `);
+
+      // Guardar el estado actual como anterior
+      window.previousLives[index] = p.lives;
     }
   });
   livesBar.innerHTML = listItems.join('');

@@ -21,6 +21,14 @@ html, body {
 canvas {
   display: block;
   margin-top: 10px;
+  opacity: 0;
+  transform: scale(0.95) rotate(var(--canvas-rotation, 0deg));
+  transition: opacity 0.6s cubic-bezier(0.4, 0, 0.2, 1), transform 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+canvas.visible {
+  opacity: 1;
+  transform: scale(1) rotate(var(--canvas-rotation, 0deg));
 }
 
 /* Barra de vidas con tamaño adaptativo */
@@ -29,7 +37,6 @@ canvas {
   min-height: 40px;
   padding: 5px;
   color: #fff;
-  font-size: clamp(12px, 2.5vw, 24px);
   display: flex;
   justify-content: center;
   align-items: center;
@@ -38,11 +45,68 @@ canvas {
   position: relative;
   background: transparent;
   text-align: center;
+  opacity: 0;
+  transform: translateY(-10px);
+  transition: opacity 0.5s ease, transform 0.5s ease;
 }
 
-#livesBar span {
-  margin: 2px clamp(5px, 2vw, 20px);
+#livesBar.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Premium player life pill */
+.player-life-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 12px;
+  margin: 4px clamp(5px, 2vw, 15px);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  backdrop-filter: blur(5px);
+  -webkit-backdrop-filter: blur(5px);
+  box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+}
+
+.player-name {
+  font-weight: bold;
+  font-size: 14px;
+  max-width: 85px;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
+  margin-right: 8px;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+}
+
+.player-dots {
+  display: flex;
+  gap: 4px;
+}
+
+.dot {
+  width: 12px;
+  height: 6px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.15);
+  transition: background 0.3s ease, transform 0.3s ease;
+}
+
+.dot.active {
+  background: var(--player-color);
+  box-shadow: 0 0 8px var(--player-color);
+}
+
+/* Red flash / lose animation for dots */
+@keyframes dot-lose {
+  0% { background: #ff4d4d; transform: scale(1.4); box-shadow: 0 0 14px #ff4d4d; }
+  50% { background: #ff4d4d; transform: scale(1.4); box-shadow: 0 0 14px #ff4d4d; }
+  100% { background: rgba(255, 255, 255, 0.15); transform: scale(1); box-shadow: none; }
+}
+
+.dot.lost {
+  animation: dot-lose 0.8s ease-out forwards;
 }
 
 /* Pantallas de inicio y fin del juego */

@@ -49,7 +49,7 @@
       <h1>Multi Ping Pong</h1>
       <h2>Ingresá tu nombre</h2>
       <div class="input-group">
-        <input type="text" id="playerName" placeholder="Tu nombre" maxlength="20" autocomplete="off" />
+        <input type="text" id="playerName" placeholder="Tu nombre" maxlength="12" oninput="this.value = this.value.replace(/[^a-zA-Z0-9 ]/g, '')" autocomplete="off" />
       </div>
 
       <button id="loginBtn" onclick="loginWithGoogle()"
@@ -205,9 +205,8 @@
         <!-- Player list items will go here -->
       </ul>
 
-      <!-- Indicador de modo de juego -->
       <p id="gameModeIndicator" style="text-align: center; font-size: 13px; padding: 6px 12px; border-radius: 8px; margin-bottom: 10px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);">
-        ⚠️ Modo Casual (sin ranking)
+        ⚠️ Clásica
       </p>
 
       <button id="readyButton" onclick="network.toggleReady()"

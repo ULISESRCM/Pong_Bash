@@ -460,11 +460,11 @@ class NetworkManager {
         if (!indicator) return;
         const playerCount = document.getElementById('lobbyPlayerList').children.length;
         if (playerCount >= 4) {
-            indicator.textContent = '🏆 Modo Competitivo (con ranking)';
+            indicator.textContent = '🏆 Ranked';
             indicator.style.color = '#f1c40f';
             indicator.style.borderColor = 'rgba(241,196,15,0.3)';
         } else {
-            indicator.textContent = '⚠️ Modo Casual (sin ranking)';
+            indicator.textContent = '⚠️ Clásica';
             indicator.style.color = '#aaa';
             indicator.style.borderColor = 'rgba(255,255,255,0.1)';
         }
@@ -487,13 +487,15 @@ class NetworkManager {
 
     createRoom(name) {
         if (this.socket) {
-            this.socket.emit('create_room', { name: name || 'Jugador 1' });
+            const sanitized = (name || '').replace(/[^a-zA-Z0-9 ]/g, '').substring(0, 12);
+            this.socket.emit('create_room', { name: sanitized || 'Jugador 1' });
         }
     }
 
     joinRoom(roomId, name) {
         if (this.socket) {
-            this.socket.emit('join_room', { roomId, name: name || 'Jugador' });
+            const sanitized = (name || '').replace(/[^a-zA-Z0-9 ]/g, '').substring(0, 12);
+            this.socket.emit('join_room', { roomId, name: sanitized || 'Jugador' });
         }
     }
 
@@ -585,7 +587,7 @@ class NetworkManager {
         // No actualizar ranking ni WR en modos casuales (menos de 4 jugadores)
         if (window.playerCount < 4) {
             if (deltaEl) {
-                deltaEl.textContent = 'Modo Casual (sin ranking)';
+                deltaEl.textContent = 'Clásica';
                 deltaEl.style.color = '#aaa';
                 deltaEl.style.display = 'block';
             }
