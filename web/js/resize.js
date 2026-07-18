@@ -21,13 +21,21 @@ function resizeCanvas() {
 // Evento para redimensionar al cambiar ventana
 window.addEventListener('resize', () => {
   resizeCanvas();
-  resetGame(); // <- asegura que las posiciones de paletas y muros se actualicen
+  if (window.loopRunning && !window.gameOver) {
+    if (window.repositionElementsOnResize) window.repositionElementsOnResize();
+  } else {
+    resetGame();
+  }
 });
 
 // Ajuste en móviles al cambiar orientación
 window.addEventListener('orientationchange', () => {
   setTimeout(() => {
     resizeCanvas();
-    resetGame();
+    if (window.loopRunning && !window.gameOver) {
+      if (window.repositionElementsOnResize) window.repositionElementsOnResize();
+    } else {
+      resetGame();
+    }
   }, 200); // espera a que el sistema termine de redimensionar
 });

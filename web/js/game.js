@@ -89,9 +89,19 @@ function calculateDimensions() {
 function resetGame() {
   window.eliminationOrder = [];
   window.gamePaused = false;
+  if (typeof ball !== 'undefined') {
+    ball.targetX = undefined;
+    ball.targetY = undefined;
+  }
+  if (window.playerCount === 2) {
+    paddles[2].color = 'blue';
+  } else {
+    paddles[2].color = 'yellow';
+  }
   resizeCanvas();
   if (canvas) {
     canvas.style.display = 'block';
+    canvas.style.opacity = '1';
     canvas.offsetHeight; // Forzar reflow
     canvas.classList.add('visible');
   }
@@ -174,6 +184,66 @@ function resetGame() {
   resetBall();
   window.startCountdown();
 }
+
+window.repositionElementsOnResize = function() {
+  const currentLives = paddles.map(p => p.lives);
+
+  // Recalcular posiciones y límites de paletas sin resetear sus vidas
+  paddles[0].x = cornerWallLong;
+  paddles[0].y = 0;
+  paddles[0].w = paddleLength;
+  paddles[0].h = thickness;
+  paddles[0].min = cornerWallLong;
+  paddles[0].max = canvas.width - cornerWallLong - paddleLength;
+
+  paddles[1].x = canvas.width - thickness;
+  paddles[1].y = cornerWallLong;
+  paddles[1].w = thickness;
+  paddles[1].h = paddleLength;
+  paddles[1].min = cornerWallLong;
+  paddles[1].max = canvas.height - cornerWallLong - paddleLength;
+
+  paddles[2].x = cornerWallLong;
+  paddles[2].y = canvas.height - thickness;
+  paddles[2].w = paddleLength;
+  paddles[2].h = thickness;
+  paddles[2].min = cornerWallLong;
+  paddles[2].max = canvas.width - cornerWallLong - paddleLength;
+
+  paddles[3].x = 0;
+  paddles[3].y = cornerWallLong;
+  paddles[3].w = thickness;
+  paddles[3].h = paddleLength;
+  paddles[3].min = cornerWallLong;
+  paddles[3].max = canvas.height - cornerWallLong - paddleLength;
+
+  // Paredes de esquina iniciales
+  cornerWalls.length = 0;
+  cornerWalls.push(
+    { x: 0, y: 0, w: cornerWallLong, h: thickness },
+    { x: 0, y: 0, w: thickness, h: cornerWallLong },
+    { x: canvas.width - cornerWallLong, y: 0, w: cornerWallLong, h: thickness },
+    { x: canvas.width - thickness, y: 0, w: thickness, h: cornerWallLong },
+    { x: 0, y: canvas.height - thickness, w: cornerWallLong, h: thickness },
+    { x: 0, y: canvas.height - cornerWallLong, w: thickness, h: cornerWallLong },
+    { x: canvas.width - cornerWallLong, y: canvas.height - thickness, w: cornerWallLong, h: thickness },
+    { x: canvas.width - thickness, y: canvas.height - cornerWallLong, w: thickness, h: cornerWallLong }
+  );
+
+  // Cerrar lados de jugadores inactivos o eliminados
+  const allSides = [1, 2, 3, 4];
+  let activeIds = window.activePlayerIds || [1, 2, 3, 4];
+  if (window.playerCount === 2) {
+      activeIds = [1, 3];
+  }
+  const sideMap = { 1: 'top', 2: 'left', 3: 'bottom', 4: 'right' };
+  allSides.forEach(id => {
+    const idx = id - 1;
+    if (!activeIds.includes(id) || currentLives[idx] === 0) {
+      closeWall(sideMap[id]);
+    }
+  });
+};
 
 /////////////////////////////
 // 🟠 Pelota: reiniciar y mover
@@ -276,7 +346,7 @@ function updateBall(dt = 1) {
       // El host transmite la posición quieta de la pelota para mantener la sincronización online
       if (window.network && window.network.roomId && window.network.isHost) {
         const now = Date.now();
-        if (!ball.lastSent || now - ball.lastSent > 33) {
+        if (!ball.lastSent || now - ball.lastSent > 16) {
           window.network.sendBallUpdate(
             ball.x / canvas.width, ball.y / canvas.height,
             0, 0
@@ -290,11 +360,18 @@ function updateBall(dt = 1) {
 
   if (window.countdownActive) return; // Evitar mover la pelota durante el conteo regesivo
 
-  // 🌐 ONLINE: Clientes extrapolan localmente — el host corrige cada ~33ms
+  // 🌐 ONLINE: Clientes solo interpolan hacia la posición autoritativa del host
   if (window.network && window.network.roomId && !window.network.isHost) {
-    // Extrapolación simple: mover con la velocidad conocida (suavizada con dt)
-    ball.x += ball.dx * dt;
-    ball.y += ball.dy * dt;
+    if (ball.targetX !== undefined && ball.targetY !== undefined) {
+      const desvX = ball.targetX - ball.x;
+      const desvY = ball.targetY - ball.y;
+      
+      // Interpolación directa del 50% por frame — sin extrapolación local
+      // El host envía a 60fps, por lo que las correcciones son frecuentes y suaves
+      const lerpFactor = Math.min(1, 0.5 * dt);
+      ball.x += desvX * lerpFactor;
+      ball.y += desvY * lerpFactor;
+    }
     return;
   }
 
@@ -335,7 +412,7 @@ function updateBall(dt = 1) {
   // 🌐 ONLINE: Host envía posición de la pelota (throttled ~30fps, normalizada)
   if (window.network && window.network.roomId && window.network.isHost) {
     const now = Date.now();
-    if (!ball.lastSent || now - ball.lastSent > 33) {
+    if (!ball.lastSent || now - ball.lastSent > 16) {
       // Normalizar a 0-1 para compatibilidad entre distintos tamaños de canvas
       window.network.sendBallUpdate(
         ball.x / canvas.width, ball.y / canvas.height,
@@ -345,6 +422,7 @@ function updateBall(dt = 1) {
       ball.lastSent = now;
     }
   }
+}
 
 // Helper de colisión AABB simple para círculo vs rect
 function checkRectCollision(circle, rect) {
@@ -562,7 +640,8 @@ function removeLife(index, side) {
 
     setTimeout(() => {
       const ganadorIndex = paddles.indexOf(vivos[0]);
-      const nombreGanador = (window.playerNames && window.playerNames[ganadorIndex]) || ["Rojo", "Azul", "Amarillo", "Verde"][ganadorIndex];
+      const fallbackNames = ["Rojo", "Azul", "Amarillo", "Verde"];
+      const nombreGanador = (window.playerNames && window.playerNames[ganadorIndex]) || fallbackNames[ganadorIndex];
       document.getElementById('winnerName').textContent = `🎉 ¡Ganador: ${nombreGanador}! 🎉`;
       document.getElementById('startScreen').style.display = 'flex';
       document.getElementById('startContent').style.display = 'none';
@@ -690,10 +769,8 @@ function movePaddles(dt = 1) {
     // 🌐 ONLINE LOGIC: Identify if this paddle is mine or remote
     let isMyPaddle = true;
     if (window.network && window.network.roomId) {
-      let netId = parseInt(window.network.playerId);
-      // En modo 2 jugadores, el jugador 2 (cliente) controla la paleta 3 (bottom, index 2)
-      const gamePlayerId = (window.playerCount === 2 && netId === 2) ? 3 : netId;
-      if (!isNaN(netId) && gamePlayerId !== (index + 1)) {
+      const netId = parseInt(window.network.playerId);
+      if (!isNaN(netId) && netId !== (index + 1)) {
         isMyPaddle = false;
       }
     }
@@ -741,9 +818,7 @@ function movePaddles(dt = 1) {
 // 🌐 ONLINE HELPERS
 window.updateRemotePaddle = function (playerId, x, y) {
   if (!window.paddles) return;
-  // En modo 2 jugadores, mapear el jugador 2 (cliente) a la paleta 3 (bottom, index 2)
-  const gamePlayerId = (window.playerCount === 2 && playerId === 2) ? 3 : playerId;
-  const p = window.paddles[gamePlayerId - 1];
+  const p = window.paddles[playerId - 1];
   if (p) {
     // Escalar coordenadas normalizadas al canvas local
     if (p.w > p.h) p.targetX = x * canvas.width;
@@ -761,22 +836,20 @@ window.updateRemoteBall = function (data) {
   ball.activeTrail = data.activeTrail || 'none';
   ball.color = data.color || 'white';
 
-  // Interpolar posición para mitigar el jitter de WiFi y lag de transmisión
+  // Guardar posición del servidor para interpolar en el loop de físicas
   const serverX = data.x * canvas.width;
   const serverY = data.y * canvas.height;
+  ball.targetX = serverX;
+  ball.targetY = serverY;
+
   const desvX = serverX - ball.x;
   const desvY = serverY - ball.y;
   const desviacion = Math.sqrt(desvX * desvX + desvY * desvY);
 
-  // Si la pelota está exageradamente lejos (ej: reinicio o gol), corregimos al instante
-  if (desviacion > canvas.width * 0.15) {
+  // Si la pelota está lejos (ej: reinicio, gol o desincronización), corregimos al instante
+  if (desviacion > canvas.width * 0.08) {
     ball.x = serverX;
     ball.y = serverY;
-  } else {
-    // Si no, corregimos la posición de forma progresiva (lerp de 30%)
-    // Esto suaviza completamente los micro-saltos causados por WiFi o retardo de red
-    ball.x += desvX * 0.3;
-    ball.y += desvY * 0.3;
   }
 };
 
@@ -798,6 +871,12 @@ window.updateRemoteLife = function (playerId, lives) {
       if (window.AudioManager) window.AudioManager.playerEliminated();
     } else if (oldLives > lives) {
       if (window.AudioManager) window.AudioManager.goalScored();
+      // Activar efecto visual de impacto (flash de gol) en el cliente
+      window.goalFlash = {
+        side: ['top', 'left', 'bottom', 'right'][pIndex],
+        startTime: Date.now(),
+        color: p.color
+      };
     }
 
     // Draw lives immediately to reflect change
@@ -906,6 +985,7 @@ window.stopGame = function() {
   // Transición de salida para canvas y livesBar
   if (canvas) {
     canvas.classList.remove('visible');
+    canvas.style.opacity = '0';
   }
   const lb = document.getElementById('livesBar');
   if (lb) {
