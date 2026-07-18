@@ -425,7 +425,13 @@ class NetworkManager {
             // Exportar nombres reales al array global antes de iniciar el juego
             const defaultNames = ['Rojo', 'Azul', 'Amarillo', 'Verde'];
             if (window.updatePlayerNames) {
-                const names = defaultNames.map((def, i) => this.playerNames[i + 1] || def);
+                const names = defaultNames.map((def, i) => {
+                    let pId = i + 1;
+                    if (window.playerCount === 2 && pId === 3) {
+                        pId = 2; // En modo 2 jugadores, mapear el nombre del jugador 2 (guest) al slot 3 (Amarillo)
+                    }
+                    return this.playerNames[pId] || def;
+                });
                 window.updatePlayerNames(names);
             }
 

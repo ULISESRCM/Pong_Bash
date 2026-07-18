@@ -15,6 +15,7 @@ Object.defineProperty(window, 'gameOver', {
 let ballSpeed = 5;
 let noGoalTimer = null;
 const noGoalTimeout = 30000; // 30 segundos sin gol => aumento de velocidad
+let lastTime = 0;
 
 // 🎮 Modo de juego: jugadores activos (por defecto los 4)
 window.activePlayerIds = [1, 2, 3, 4];
@@ -230,11 +231,20 @@ function startNoGoalTimer() {
 // 🔵 Lógica principal del juego
 /////////////////////////////
 
-function gameLoop() {
+function gameLoop(timestamp) {
+  if (!timestamp) timestamp = performance.now();
+  if (!lastTime) lastTime = timestamp;
+  
+  let elapsed = timestamp - lastTime;
+  if (elapsed > 100) elapsed = 16.67; // Evitar tirones por inactividad
+  
+  const dt = elapsed / 16.67;
+  lastTime = timestamp;
+
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   drawLives();
-  movePaddles();
-  updateBall();
+  movePaddles(dt);
+  updateBall(dt);
   drawWalls();
   drawPaddles();
   drawBall();
@@ -245,12 +255,13 @@ function gameLoop() {
     requestAnimationFrame(gameLoop);
   } else {
     window.loopRunning = false;
+    lastTime = 0; // Resetear para la próxima partida
   }
 }
 
 
 
-function updateBall() {
+function updateBall(dt = 1) {
   if (window.SkinManager) {
     window.SkinManager.updateTrail(ball);
   }
@@ -281,18 +292,17 @@ function updateBall() {
 
   // 🌐 ONLINE: Clientes extrapolan localmente — el host corrige cada ~33ms
   if (window.network && window.network.roomId && !window.network.isHost) {
-    // Extrapolación simple: mover con la velocidad conocida (60fps suave)
-    // El host manda correcciones a 30fps que snap directo sin lerp
-    ball.x += ball.dx;
-    ball.y += ball.dy;
+    // Extrapolación simple: mover con la velocidad conocida (suavizada con dt)
+    ball.x += ball.dx * dt;
+    ball.y += ball.dy * dt;
     return;
   }
 
   // Movimiento con subdivisión para prevenir tunneling (Solución D)
-  const ballSpeedMag = Math.sqrt(ball.dx * ball.dx + ball.dy * ball.dy);
+  const ballSpeedMag = Math.sqrt((ball.dx * dt) * (ball.dx * dt) + (ball.dy * dt) * (ball.dy * dt));
   const subSteps = Math.max(1, Math.ceil(ballSpeedMag / (ball.r * 0.5)));
-  const stepDx = ball.dx / subSteps;
-  const stepDy = ball.dy / subSteps;
+  const stepDx = (ball.dx * dt) / subSteps;
+  const stepDy = (ball.dy * dt) / subSteps;
 
   for (let step = 0; step < subSteps; step++) {
     ball.x += stepDx;
@@ -335,7 +345,6 @@ function updateBall() {
       ball.lastSent = now;
     }
   }
-}
 
 // Helper de colisión AABB simple para círculo vs rect
 function checkRectCollision(circle, rect) {
@@ -676,7 +685,7 @@ function drawBall() {
 // 🧠 Movimiento de paletas
 /////////////////////////////
 
-function movePaddles() {
+function movePaddles(dt = 1) {
   paddles.forEach((p, index) => {
     // 🌐 ONLINE LOGIC: Identify if this paddle is mine or remote
     let isMyPaddle = true;
@@ -692,8 +701,8 @@ function movePaddles() {
     if (isMyPaddle) {
       // --- LOCAL CONTROL (My Paddle) ---
       let moved = false;
-      if (keysPressed[p.keys[0]]) { p.dx = -speed; moved = true; }
-      else if (keysPressed[p.keys[1]]) { p.dx = speed; moved = true; }
+      if (keysPressed[p.keys[0]]) { p.dx = -speed * dt; moved = true; }
+      else if (keysPressed[p.keys[1]]) { p.dx = speed * dt; moved = true; }
       else p.dx = 0;
 
       if (p.w > p.h) {
@@ -717,11 +726,12 @@ function movePaddles() {
     } else {
       // --- REMOTE INTERPOLATION (Other Players) ---
       // If target position exists, smooth move towards it
-      const lerpFactor = 0.3; // Increased to 0.3 for faster catch-up
+      const lerpFactor = 0.3 * dt;
+      const finalLerp = Math.min(1, lerpFactor);
       if (p.targetX !== undefined && p.w > p.h) {
-        p.x += (p.targetX - p.x) * lerpFactor;
+        p.x += (p.targetX - p.x) * finalLerp;
       } else if (p.targetY !== undefined && p.w < p.h) {
-        p.y += (p.targetY - p.y) * lerpFactor;
+        p.y += (p.targetY - p.y) * finalLerp;
       }
     }
   });
