@@ -331,45 +331,54 @@ function gameLoop(timestamp) {
 
 
 
-function updateBall(dt = 1) {
-  if (window.SkinManager) {
-    window.SkinManager.updateTrail(ball);
-  }
+function updateBall() {
+  if (gameOver) return;
 
-  if (gameOver || window.gamePaused) return;
-  
-  // Pausa de 2 segundos tras gol con parpadeo
-  if (window.ballRespawnTimerActive) {
-    if (Date.now() - window.ballRespawnStartTime > 2000) {
-      window.ballRespawnTimerActive = false;
-    } else {
-      // El host transmite la posición quieta de la pelota para mantener la sincronización online
-      if (window.network && window.network.roomId && window.network.isHost) {
-        const now = Date.now();
-        if (!ball.lastSent || now - ball.lastSent > 33) {
-          window.network.sendBallUpdate(
-            ball.x / canvas.width, ball.y / canvas.height,
-            0, 0
-          );
-          ball.lastSent = now;
-        }
-      }
-      return;
+  const isOnlineGuest = window.network && window.network.roomId && !window.network.isHost;
+
+  // Movimiento
+  ball.x += ball.dx;
+  ball.y += ball.dy;
+
+  // 1. Rebote en Paredes de Esquina (Corner Walls)
+  cornerWalls.forEach(w => {
+    if (checkRectCollision(ball, w)) {
+      resolveWallCollision(ball, w);
     }
-  }
+  });
 
-  if (window.countdownActive) return; // Evitar mover la pelota durante el conteo regesivo
+  // 2. Rebote en Paletas (Paddles)
+  paddles.forEach(p => {
+    if (p.lives > 0 && checkRectCollision(ball, p)) {
+      // Determinar punto de impacto relativo (-1 a 1)
+      let collidePoint = 0;
+      let isSmash = false; // Flag para detectar si hubo "empuje"
 
-  // 🌐 ONLINE: Clientes usan un buffer de reproducción con retraso de 120ms para un movimiento 100% fluido y libre de saltos
-  if (window.network && window.network.roomId && !window.network.isHost) {
-    if (window.ballBuffer && window.ballBuffer.length > 0) {
-      const renderTime = Date.now() - 120; // 120ms de retraso para absorber jitter
-      let p1 = null;
-      let p2 = null;
-      for (let i = 0; i < window.ballBuffer.length; i++) {
-        const p = window.ballBuffer[i];
-        if (p.time <= renderTime) {
-          p1 = p;
+      // Paletas horizontales (Top/Bottom)
+      if (p.w > p.h) {
+        const center = p.x + p.w / 2;
+        collidePoint = (ball.x - center) / (p.w / 2);
+
+        let directionY = (ball.dy > 0) ? -1 : 1;
+
+        // DETECCIÓN DE DASH / SMASH
+        // Si la paleta se mueve muy rápido (usamos un umbral)
+        // Y si el movimiento lateral coincide con la dirección horizontal de la pelota (opcional)
+        // O simplemente si se está moviendo al momento del impacto, le da un boost.
+        // Simplificación: Si |p.dx| > 0, es un golpe con movimiento.
+        if (Math.abs(p.dx) > 0) {
+          isSmash = true;
+        }
+
+        const angleRad = collidePoint * (Math.PI / 3);
+
+        // Velocidad base del rebote
+        let speed = Math.sqrt(ball.dx * ball.dx + ball.dy * ball.dy);
+
+        // APLICAR BOOST SI ES SMASH
+        if (isSmash) {
+          speed *= 1.5; // 50% más rápido!
+          ball.color = p.color; // La pelota toma el color del jugador
         } else {
           p2 = p;
           break;
@@ -389,61 +398,27 @@ function updateBall(dt = 1) {
           ball.dx = p2.vx;
           ball.dy = p2.vy;
         } else {
-          const t = (renderTime - p1.time) / (p2.time - p1.time);
-          ball.x = p1.x + (p2.x - p1.x) * t;
-          ball.y = p1.y + (p2.y - p1.y) * t;
-          ball.dx = p1.vx + (p2.vx - p1.vx) * t;
-          ball.dy = p1.vy + (p2.vy - p1.vy) * t;
+          speed *= 1.05;
+          ball.color = 'white';
         }
-        ball.activeTrail = p1.activeTrail;
-        ball.color = p1.color;
-      } else if (p1) {
-        // Extrapolación si no hay paquete futuro aún
-        const elapsed = renderTime - p1.time;
-        const frames = elapsed / 16.67;
-        ball.x = p1.x + p1.vx * frames;
-        ball.y = p1.y + p1.vy * frames;
-        ball.dx = p1.vx;
-        ball.dy = p1.vy;
-        ball.activeTrail = p1.activeTrail;
-        ball.color = p1.color;
+
+        const maxSpeed = canvas.width * 0.04;
+        speed = Math.min(speed, maxSpeed);
+
+        ball.dx = directionX * speed * Math.cos(angleRad);
+        ball.dy = speed * Math.sin(angleRad);
+
+        // Ajuste anti-stick
+        if (directionX === 1) ball.x = p.x + p.w + ball.r + 1;
+        else ball.x = p.x - ball.r - 1;
       }
     }
-    return;
-  }
+  });
 
-
-  // Movimiento con subdivisión para prevenir tunneling (Solución D)
-  const ballSpeedMag = Math.sqrt((ball.dx * dt) * (ball.dx * dt) + (ball.dy * dt) * (ball.dy * dt));
-  const subSteps = Math.max(1, Math.ceil(ballSpeedMag / (ball.r * 0.5)));
-  const stepDx = (ball.dx * dt) / subSteps;
-  const stepDy = (ball.dy * dt) / subSteps;
-
-  for (let step = 0; step < subSteps; step++) {
-    ball.x += stepDx;
-    ball.y += stepDy;
-
-    // 1. Rebote en Paredes de Esquina (Corner Walls)
-    for (let wi = 0; wi < cornerWalls.length; wi++) {
-      if (checkRectCollision(ball, cornerWalls[wi])) {
-        resolveWallCollision(ball, cornerWalls[wi]);
-      }
-    }
-
-    // 2. Rebote en Paletas (Paddles)
-    let collidedWithPaddle = false;
-    for (let pi = 0; pi < paddles.length; pi++) {
-      const p = paddles[pi];
-      if (p.lives > 0 && checkRectCollision(ball, p)) {
-        resolvePaddleCollision(ball, p);
-        collidedWithPaddle = true;
-        break;
-      }
-    }
-    if (collidedWithPaddle) {
-      break; // Romper subpasos para este frame
-    }
-  }
+  // 🌐 ONLINE: el invitado predice los rebotes localmente (misma física que el host)
+  // para que la pelota no atraviese paletas/paredes en su pantalla. No decide goles
+  // ni vidas: eso lo maneja el host en exclusiva y llega vía 'life_update'.
+  if (isOnlineGuest) return;
 
   checkGoal();
 
