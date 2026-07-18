@@ -273,6 +273,10 @@ function resetBall() {
   ball.dx = dx;
   ball.dy = dy;
 
+  // Forzar snapshot inmediato a los invitados: que el respawn les llegue ya,
+  // sin esperar el próximo tick del throttle de 33ms
+  ball.lastSent = 0;
+
   startNoGoalTimer();
 }
 
@@ -332,7 +336,7 @@ function gameLoop(timestamp) {
 
 
 
-function updateBall() {
+function updateBall(dt = 1) {
   if (gameOver) return;
 
   const isOnlineGuest = window.network && window.network.roomId && !window.network.isHost;
@@ -345,23 +349,29 @@ function updateBall() {
     return;
   }
 
-  // Movimiento
-  ball.x += ball.dx;
-  ball.y += ball.dy;
+  // Movimiento con dt (independiente del refresh del monitor: 60/90/120Hz).
+  // En sub-pasos: a menos de 60fps (dt > 1) un avance entero podría saltarse
+  // una paleta fina, así que se divide el trayecto y se colisiona por tramo.
+  const steps = Math.max(1, Math.ceil(dt));
+  const stepDt = dt / steps;
+  for (let i = 0; i < steps; i++) {
+    ball.x += ball.dx * stepDt;
+    ball.y += ball.dy * stepDt;
 
-  // 1. Rebote en Paredes de Esquina (Corner Walls)
-  cornerWalls.forEach(w => {
-    if (checkRectCollision(ball, w)) {
-      resolveWallCollision(ball, w);
-    }
-  });
+    // 1. Rebote en Paredes de Esquina (Corner Walls)
+    cornerWalls.forEach(w => {
+      if (checkRectCollision(ball, w)) {
+        resolveWallCollision(ball, w);
+      }
+    });
 
-  // 2. Rebote en Paletas (Paddles)
-  paddles.forEach(p => {
-    if (p.lives > 0 && checkRectCollision(ball, p)) {
-      resolvePaddleCollision(ball, p);
-    }
-  });
+    // 2. Rebote en Paletas (Paddles)
+    paddles.forEach(p => {
+      if (p.lives > 0 && checkRectCollision(ball, p)) {
+        resolvePaddleCollision(ball, p);
+      }
+    });
+  }
 
   checkGoal();
 
@@ -390,6 +400,7 @@ function updateGuestBall() {
   if (!buf || buf.length === 0) return;
 
   const renderTime = Date.now() - 120; // mismo delay que las paletas remotas
+  const W = canvas.width, H = canvas.height;
 
   let s1 = null, s2 = null;
   for (let i = 0; i < buf.length; i++) {
@@ -402,38 +413,47 @@ function updateGuestBall() {
   }
 
   if (s1 && s2) {
+    // ¿Rebote entre snapshots? (la velocidad cambió de signo)
     const bounced =
       (s1.vx !== 0 && s2.vx !== 0 && Math.sign(s1.vx) !== Math.sign(s2.vx)) ||
       (s1.vy !== 0 && s2.vy !== 0 && Math.sign(s1.vy) !== Math.sign(s2.vy));
 
-    if (bounced) {
-      ball.x = s2.x;
-      ball.y = s2.y;
+    // ¿Teletransporte real? (respawn tras gol: la distancia entre snapshots
+    // supera por mucho lo que la velocidad de la pelota permite recorrer)
+    const dist = Math.hypot(s2.x - s1.x, s2.y - s1.y);
+    const framesBetween = (s2.time - s1.time) / 16.67;
+    const expected = Math.hypot(s2.vx, s2.vy) * framesBetween;
+    const teleported = dist > expected * 1.5 + 0.02;
+
+    if (bounced || teleported) {
+      // Interpolar en línea recta cruzaría paletas/paredes: saltar al estado nuevo
+      ball.x = s2.x * W;
+      ball.y = s2.y * H;
     } else {
       const t = (renderTime - s1.time) / (s2.time - s1.time);
-      ball.x = s1.x + (s2.x - s1.x) * t;
-      ball.y = s1.y + (s2.y - s1.y) * t;
+      ball.x = (s1.x + (s2.x - s1.x) * t) * W;
+      ball.y = (s1.y + (s2.y - s1.y) * t) * H;
     }
-    ball.dx = s2.vx;
-    ball.dy = s2.vy;
+    ball.dx = s2.vx * W;
+    ball.dy = s2.vy * H;
     ball.color = s2.color || 'white';
     ball.activeTrail = s2.activeTrail || 'none';
   } else if (s1) {
     // No llegó un estado más nuevo (jitter/pérdida): extrapolar con la última
     // velocidad conocida, con tope de ~130ms para no atravesar nada si se corta la red
     const frames = Math.min((renderTime - s1.time) / 16.67, 8);
-    ball.x = s1.x + s1.vx * frames;
-    ball.y = s1.y + s1.vy * frames;
-    ball.dx = s1.vx;
-    ball.dy = s1.vy;
+    ball.x = (s1.x + s1.vx * frames) * W;
+    ball.y = (s1.y + s1.vy * frames) * H;
+    ball.dx = s1.vx * W;
+    ball.dy = s1.vy * H;
     ball.color = s1.color || 'white';
     ball.activeTrail = s1.activeTrail || 'none';
   } else {
     // Recién conectado: todos los estados son más nuevos que renderTime
-    ball.x = buf[0].x;
-    ball.y = buf[0].y;
-    ball.dx = buf[0].vx;
-    ball.dy = buf[0].vy;
+    ball.x = buf[0].x * W;
+    ball.y = buf[0].y * H;
+    ball.dx = buf[0].vx * W;
+    ball.dy = buf[0].vy * H;
   }
 }
 
@@ -891,11 +911,15 @@ window.updateRemoteBall = function (data) {
   if (typeof ball === 'undefined') return;
   if (!window.ballBuffer) window.ballBuffer = [];
 
+  // Guardar NORMALIZADO (0-1) y escalar recién al renderizar: si el canvas
+  // cambia de tamaño entre recibir y dibujar (barra del navegador móvil,
+  // rotación, scroll), un snapshot escalado quedaría en píxeles viejos y la
+  // pelota se dibujaría fuera de la cancha.
   window.ballBuffer.push({
-    x: data.x * canvas.width,
-    y: data.y * canvas.height,
-    vx: data.vx * canvas.width,
-    vy: data.vy * canvas.height,
+    x: data.x,
+    y: data.y,
+    vx: data.vx,
+    vy: data.vy,
     activeTrail: data.activeTrail || 'none',
     color: data.color || 'white',
     time: Date.now()
