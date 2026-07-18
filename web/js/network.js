@@ -262,6 +262,44 @@ class NetworkManager {
             if (item) item.remove();
 
             delete this.playerNames[data.playerId];
+            if (this.playAgainStates) {
+                delete this.playAgainStates[data.playerId];
+            }
+
+            const remainingCount = data.players ? Object.keys(data.players).length : 0;
+
+            // 👥 Si queda menos de 2 jugadores en la sala, volvemos obligatoriamente al lobby de espera
+            if (remainingCount < 2) {
+                if (window.stopGame) window.stopGame();
+                
+                // Ocultar overlays de fin de juego/inicio
+                document.getElementById('endContent').style.display = 'none';
+                document.getElementById('startScreen').style.display = 'none';
+                
+                this.showLobby(this.isHost);
+                document.getElementById('lobbyPlayerList').innerHTML = '';
+                if (data.players) {
+                    for (const pId in data.players) {
+                        const p = data.players[pId];
+                        this.playerNames[parseInt(pId)] = p.name || `Jugador ${pId}`;
+                        this.addPlayerToLobby(parseInt(pId), false, p.name);
+                    }
+                }
+
+                if (window.Swal) {
+                    Swal.fire({
+                        title: 'Sala en espera',
+                        text: 'El otro jugador se desconectó. La sala volvió al lobby de espera. Compartí el código para invitar a otro amigo.',
+                        icon: 'info',
+                        background: '#121212',
+                        color: '#fff',
+                        confirmButtonColor: '#4a90e2'
+                    });
+                } else if (window.showAlert) {
+                    window.showAlert('Sala en espera', 'El otro jugador se desconectó.', 'info');
+                }
+                return;
+            }
 
             if (isPlaying) {
                 // Si la partida está activa, su lado de la paleta queda totalmente bloqueado
@@ -299,7 +337,7 @@ class NetworkManager {
                     }
                 }
             } else {
-                // Si no se estaba jugando (Lobby), actualizamos la interfaz del lobby
+                // Si no se estaba jugando (o estamos en pantalla de fin de juego pero quedan >= 2), actualizamos el lobby y la lista de Jugar de nuevo
                 this.showLobby(this.isHost);
                 document.getElementById('lobbyPlayerList').innerHTML = '';
                 if (data.players) {
@@ -309,6 +347,7 @@ class NetworkManager {
                         this.addPlayerToLobby(parseInt(pId), false, p.name);
                     }
                 }
+                this.updatePlayAgainList();
             }
         });
 
@@ -566,7 +605,7 @@ class NetworkManager {
             this.playAgainStates[readyPlayerId] = isReady;
         }
 
-        const colors = ["#ff4d4d", "#4da6ff", "#ffff66", "#66ff66"];
+        const colors = ["#ff4d4d", "#4a90e2", "#f1c40f", "#2ecc71"];
         let html = '<div style="margin-top: 15px; font-size: 16px; text-align: left; max-width: 250px; margin-left: auto; margin-right: auto;">';
         for (let i = 1; i <= 4; i++) {
             if (this.playerNames[i]) {
