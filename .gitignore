@@ -45,3 +45,6 @@ coverage/
 
 # Keep package-lock.json committed for reproducible installs
 # (quitando package-lock.json de la lista permite control de versiones del lockfile)
+
+# Firebase
+.firebase/
