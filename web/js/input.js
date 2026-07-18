@@ -46,9 +46,11 @@ function handleTouch(e) {
     if (e.type === 'touchstart') {
       // Verificar si tocó alguna paleta
       paddles.forEach((p, index) => {
-        // ONLINE CHECK
         if (window.network && window.network.roomId) {
-          const myId = parseInt(window.network.playerId);
+          let myId = parseInt(window.network.playerId);
+          if (window.playerCount === 2 && myId === 2) {
+            myId = 3;
+          }
           if (!isNaN(myId) && myId !== (index + 1)) return;
         }
 

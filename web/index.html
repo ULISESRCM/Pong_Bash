@@ -146,13 +146,15 @@
     </div>
   </div>
 
-  <div id="endContent" class="overlay" style="display: none;">
-    <h1 id="winnerName">🎉 ¡Ganador! 🎉</h1>
-    <div id="pointsDeltaDisplay"
-      style="font-size: clamp(32px, 8vw, 64px); font-weight: bold; margin: 15px 0; display: none;"></div>
-    <div id="restartStatusList" style="margin: 15px 0;"></div>
-    <button onclick="restartGame()">Jugar de nuevo</button>
-    <button onclick="leaveRoom()" style="background-color: #e74c3c; margin-top: 10px;">Salir de Sala</button>
+  <div id="endContent" class="overlay" style="display: none; justify-content: center; align-items: center; background-color: rgba(0, 0, 0, 0.85);">
+    <div style="background: rgba(0,0,0,0.9); padding: 40px; border: 2px solid white; border-radius: 10px; color: white; text-align: center; min-width: 350px; max-width: 400px; display: flex; flex-direction: column; align-items: center; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
+      <h1 id="winnerName" style="font-size: 24px; margin-bottom: 15px;">🎉 ¡Ganador! 🎉</h1>
+      <div id="pointsDeltaDisplay"
+        style="font-size: clamp(32px, 8vw, 64px); font-weight: bold; margin: 15px 0; display: none;"></div>
+      <div id="restartStatusList" style="margin: 15px 0; width: 100%;"></div>
+      <button onclick="restartGame()" style="width: 100%; margin-bottom: 10px;">Jugar de nuevo</button>
+      <button onclick="leaveRoom()" style="background-color: #e74c3c; width: 100%;">Salir de Sala</button>
+    </div>
   </div>
 
   <canvas id="gameCanvas"></canvas>

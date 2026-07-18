@@ -234,6 +234,14 @@ io.on('connection', (socket) => {
                 return;
             }
 
+            // Validar que todos los invitados estén listos
+            const guests = Object.keys(room.players).filter(id => parseInt(id) !== 1);
+            const allGuestsReady = guests.every(id => room.players[id].ready === true);
+            if (!allGuestsReady) {
+                socket.emit('players_not_ready', { roomId });
+                return;
+            }
+
             io.to(roomId).emit('game_started', {
                 playerCount: playerCount,
                 playerIds: playerIds

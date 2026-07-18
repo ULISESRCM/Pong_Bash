@@ -41,6 +41,30 @@ class NetworkManager {
             this.connected = true;
         });
 
+        this.socket.on('disconnect', (reason) => {
+            console.log('Disconnected from server:', reason);
+            this.connected = false;
+            
+            if (window.stopGame) window.stopGame();
+            if (window.Swal) Swal.close();
+            if (window.leaveRoom) {
+                window.leaveRoom();
+            }
+            
+            if (window.Swal) {
+                Swal.fire({
+                    title: 'Conexión perdida',
+                    text: 'Se perdió la conexión con el servidor. Volviendo al menú principal.',
+                    icon: 'error',
+                    background: '#121212',
+                    color: '#fff',
+                    confirmButtonColor: '#4a90e2'
+                });
+            } else {
+                alert('Se perdió la conexión con el servidor. Volviendo al menú principal.');
+            }
+        });
+
         this.socket.on('room_created', (data) => {
             this.roomId = data.roomId;
             this.playerId = parseInt(data.playerId);
@@ -185,6 +209,22 @@ class NetworkManager {
                 });
             } else {
                 window.showAlert('¡Invitá a un amigo!', `Necesitás al menos 2 jugadores. Código de sala: ${this.roomId}`, 'info');
+            }
+        });
+
+        // Evento: jugadores no listos para iniciar
+        this.socket.on('players_not_ready', () => {
+            if (window.Swal) {
+                Swal.fire({
+                    title: '¡Esperando listos!',
+                    text: 'Todos los jugadores invitados deben poner LISTO antes de poder comenzar la partida.',
+                    icon: 'warning',
+                    background: '#121212',
+                    color: '#fff',
+                    confirmButtonColor: '#f1c40f'
+                });
+            } else {
+                window.showAlert('¡Esperando listos!', 'Todos los invitados deben estar listos.', 'warning');
             }
         });
 
@@ -470,35 +510,26 @@ class NetworkManager {
 
             const remainingCount = data.players ? Object.keys(data.players).length : 0;
 
-            // 👥 Si queda menos de 2 jugadores en la sala, volvemos obligatoriamente al lobby de espera
+            // 👥 Si queda menos de 2 jugadores en la sala, el juego termina por completo y volvemos a la vista inicial (menú principal)
             if (remainingCount < 2) {
                 if (window.stopGame) window.stopGame();
-                
-                // Ocultar overlays de fin de juego/inicio
-                document.getElementById('endContent').style.display = 'none';
-                document.getElementById('startScreen').style.display = 'none';
-                
-                this.showLobby(this.isHost);
-                document.getElementById('lobbyPlayerList').innerHTML = '';
-                if (data.players) {
-                    for (const pId in data.players) {
-                        const p = data.players[pId];
-                        this.playerNames[parseInt(pId)] = p.name || `Jugador ${pId}`;
-                        this.addPlayerToLobby(parseInt(pId), false, p.name);
-                    }
+                if (window.leaveRoom) {
+                    window.leaveRoom();
+                } else {
+                    this.leaveRoom();
                 }
-
+                
                 if (window.Swal) {
                     Swal.fire({
-                        title: 'Sala en espera',
-                        text: 'El otro jugador se desconectó. La sala volvió al lobby de espera. Compartí el código para invitar a otro amigo.',
+                        title: 'Partida finalizada',
+                        text: 'El otro jugador se desconectó. La partida terminó y volviste al menú principal.',
                         icon: 'info',
                         background: '#121212',
                         color: '#fff',
                         confirmButtonColor: '#4a90e2'
                     });
-                } else if (window.showAlert) {
-                    window.showAlert('Sala en espera', 'El otro jugador se desconectó.', 'info');
+                } else {
+                    alert('El otro jugador se desconectó. Volviendo al menú principal.');
                 }
                 return;
             }
@@ -814,13 +845,28 @@ class NetworkManager {
         }
 
         const colors = ["#ff4d4d", "#4a90e2", "#f1c40f", "#2ecc71"];
-        let html = '<div style="margin-top: 15px; font-size: 16px; text-align: left; max-width: 250px; margin-left: auto; margin-right: auto;">';
+        let html = '<div style="margin-top: 15px; width: 100%; display: flex; flex-direction: column; gap: 8px; text-align: left;">';
         for (let i = 1; i <= 4; i++) {
             if (this.playerNames[i]) {
                 const name = this.playerNames[i];
-                const statusStr = this.playAgainStates[i] ? "✅ Listo" : "⏳ Esperando";
-                const color = colors[i - 1];
-                html += `<div style="color: ${color}; margin-bottom: 5px;">${name}: <strong>${statusStr}</strong></div>`;
+                const playerReady = this.playAgainStates[i] === true;
+                const color = colors[i - 1] || "#fff";
+                const isMe = i === this.playerId;
+                const meSuffix = isMe ? ' <span style="font-size: 11px; opacity: 0.6; font-style: italic;">(Tú)</span>' : '';
+
+                const badge = playerReady
+                    ? `<span style="background-color: #2ecc71; color: white; padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: bold; box-shadow: 0 2px 8px rgba(46,204,113,0.35); text-transform: uppercase; letter-spacing: 0.5px;">Listo</span>`
+                    : `<span style="background-color: rgba(255,255,255,0.08); color: #aaa; padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: 600;">Esperando</span>`;
+
+                html += `
+                    <div style="display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-left: 4px solid ${color}; border-radius: 10px; list-style-type: none; width: 100%;">
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <span style="display: inline-block; width: 10px; height: 10px; border-radius: 50%; background-color: ${color}; box-shadow: 0 0 8px ${color}88;"></span>
+                            <span style="font-weight: 600; color: #fff; font-size: 14px;">${name}${meSuffix}</span>
+                        </div>
+                        ${badge}
+                    </div>
+                `;
             }
         }
         html += '</div>';

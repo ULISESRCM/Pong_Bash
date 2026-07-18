@@ -290,7 +290,7 @@ function updateBall() {
 
   // Movimiento con subdivisión para prevenir tunneling (Solución D)
   const ballSpeedMag = Math.sqrt(ball.dx * ball.dx + ball.dy * ball.dy);
-  const subSteps = Math.max(1, Math.ceil(ballSpeedMag / ball.r));
+  const subSteps = Math.max(1, Math.ceil(ballSpeedMag / (ball.r * 0.5)));
   const stepDx = ball.dx / subSteps;
   const stepDy = ball.dy / subSteps;
 
@@ -304,82 +304,21 @@ function updateBall() {
         resolveWallCollision(ball, cornerWalls[wi]);
       }
     }
-  }
 
-  // 2. Rebote en Paletas (Paddles) — Solución B: dirección por posición, no por velocidad
-  paddles.forEach(p => {
-    if (p.lives > 0 && checkRectCollision(ball, p)) {
-      let collidePoint = 0;
-      const isSmash = Math.abs(p.dx) > 0;
-      const margin = ball.r * 0.15; // Solución C: separación proporcional
-
-      // Paletas horizontales (Top/Bottom)
-      if (p.w > p.h) {
-        const center = p.x + p.w / 2;
-        collidePoint = Math.max(-1, Math.min(1, (ball.x - center) / (p.w / 2)));
-
-        // Solución B: dirección determinada por posición relativa, no por velocidad
-        const paddleMidY = p.y + p.h / 2;
-        const directionY = (ball.y < paddleMidY) ? -1 : 1;
-
-        const angleRad = collidePoint * (Math.PI / 3);
-        let speed = Math.sqrt(ball.dx * ball.dx + ball.dy * ball.dy);
-
-        // SMASH: boost de velocidad si la paleta estaba en movimiento
-        if (isSmash) {
-          speed *= 1.5;
-          ball.activeTrail = p.trailId || 'none';
-        } else {
-          speed *= 1.05;
-          ball.activeTrail = 'none';
-        }
-
-        const maxSpeed = canvas.width * 0.04;
-        speed = Math.min(speed, maxSpeed);
-
-        ball.dx = speed * Math.sin(angleRad);
-        ball.dy = directionY * speed * Math.cos(angleRad);
-
-        // Solución C: separación proporcional anti-stick
-        if (directionY === 1) ball.y = p.y + p.h + ball.r + margin;
-        else ball.y = p.y - ball.r - margin;
-      }
-      // Paletas verticales (Left/Right)
-      else {
-        const center = p.y + p.h / 2;
-        collidePoint = Math.max(-1, Math.min(1, (ball.y - center) / (p.h / 2)));
-
-        // Solución B: dirección determinada por posición relativa
-        const paddleMidX = p.x + p.w / 2;
-        const directionX = (ball.x < paddleMidX) ? -1 : 1;
-
-        const angleRad = collidePoint * (Math.PI / 3);
-        let speed = Math.sqrt(ball.dx * ball.dx + ball.dy * ball.dy);
-
-        if (isSmash) {
-          speed *= 1.5;
-          ball.activeTrail = p.trailId || 'none';
-        } else {
-          speed *= 1.05;
-          ball.activeTrail = 'none';
-        }
-
-        const maxSpeed = canvas.width * 0.04;
-        speed = Math.min(speed, maxSpeed);
-
-        ball.dx = directionX * speed * Math.cos(angleRad);
-        ball.dy = speed * Math.sin(angleRad);
-
-        // Solución C: separación proporcional anti-stick
-        if (directionX === 1) ball.x = p.x + p.w + ball.r + margin;
-        else ball.x = p.x - ball.r - margin;
-      }
-      if (window.AudioManager) {
-        if (isSmash) window.AudioManager.smashHit();
-        else window.AudioManager.paddleHit();
+    // 2. Rebote en Paletas (Paddles)
+    let collidedWithPaddle = false;
+    for (let pi = 0; pi < paddles.length; pi++) {
+      const p = paddles[pi];
+      if (p.lives > 0 && checkRectCollision(ball, p)) {
+        resolvePaddleCollision(ball, p);
+        collidedWithPaddle = true;
+        break;
       }
     }
-  });
+    if (collidedWithPaddle) {
+      break; // Romper subpasos para este frame
+    }
+  }
 
   checkGoal();
 
@@ -411,6 +350,78 @@ function checkRectCollision(circle, rect) {
   // Si la distancia es menor que el radio, hay colisión
   const distanceSquared = (distanceX * distanceX) + (distanceY * distanceY);
   return distanceSquared < (circle.r * circle.r);
+}
+
+function resolvePaddleCollision(circle, p) {
+  let collidePoint = 0;
+  const isSmash = Math.abs(p.dx) > 0;
+  const margin = circle.r * 0.15; // Solución C: separación proporcional
+
+  // Paletas horizontales (Top/Bottom)
+  if (p.w > p.h) {
+    const center = p.x + p.w / 2;
+    collidePoint = Math.max(-1, Math.min(1, (circle.x - center) / (p.w / 2)));
+
+    // Solución B: dirección determinada por posición relativa, no por velocidad
+    const paddleMidY = p.y + p.h / 2;
+    const directionY = (circle.y < paddleMidY) ? -1 : 1;
+
+    const angleRad = collidePoint * (Math.PI / 3);
+    let speed = Math.sqrt(circle.dx * circle.dx + circle.dy * circle.dy);
+
+    // SMASH: boost de velocidad si la paleta estaba en movimiento
+    if (isSmash) {
+      speed *= 1.5;
+      circle.activeTrail = p.trailId || 'none';
+    } else {
+      speed *= 1.05;
+      circle.activeTrail = 'none';
+    }
+
+    const maxSpeed = canvas.width * 0.04;
+    speed = Math.min(speed, maxSpeed);
+
+    circle.dx = speed * Math.sin(angleRad);
+    circle.dy = directionY * speed * Math.cos(angleRad);
+
+    // Solución C: separación proporcional anti-stick
+    if (directionY === 1) circle.y = p.y + p.h + circle.r + margin;
+    else circle.y = p.y - circle.r - margin;
+  }
+  // Paletas verticales (Left/Right)
+  else {
+    const center = p.y + p.h / 2;
+    collidePoint = Math.max(-1, Math.min(1, (circle.y - center) / (p.h / 2)));
+
+    // Solución B: dirección determinada por posición relativa
+    const paddleMidX = p.x + p.w / 2;
+    const directionX = (circle.x < paddleMidX) ? -1 : 1;
+
+    const angleRad = collidePoint * (Math.PI / 3);
+    let speed = Math.sqrt(circle.dx * circle.dx + circle.dy * circle.dy);
+
+    if (isSmash) {
+      speed *= 1.5;
+      circle.activeTrail = p.trailId || 'none';
+    } else {
+      speed *= 1.05;
+      circle.activeTrail = 'none';
+    }
+
+    const maxSpeed = canvas.width * 0.04;
+    speed = Math.min(speed, maxSpeed);
+
+    circle.dx = directionX * speed * Math.cos(angleRad);
+    circle.dy = speed * Math.sin(angleRad);
+
+    // Solución C: separación proporcional anti-stick
+    if (directionX === 1) circle.x = p.x + p.w + circle.r + margin;
+    else circle.x = p.x - circle.r - margin;
+  }
+  if (window.AudioManager) {
+    if (isSmash) window.AudioManager.smashHit();
+    else window.AudioManager.paddleHit();
+  }
 }
 
 function resolveWallCollision(circle, rect) {
