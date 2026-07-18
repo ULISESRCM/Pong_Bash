@@ -360,12 +360,6 @@ function updateBall(dt = 1) {
 
   if (window.countdownActive) return; // Evitar mover la pelota durante el conteo regesivo
 
-  // 🌐 ONLINE: Clientes mueven la pelota localmente y corrigen la posición al recibir actualizaciones
-  if (window.network && window.network.roomId && !window.network.isHost) {
-    ball.x += ball.dx * dt;
-    ball.y += ball.dy * dt;
-    return;
-  }
 
   // Movimiento con subdivisión para prevenir tunneling (Solución D)
   const ballSpeedMag = Math.sqrt((ball.dx * dt) * (ball.dx * dt) + (ball.dy * dt) * (ball.dy * dt));
