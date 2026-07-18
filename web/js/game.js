@@ -89,6 +89,7 @@ function calculateDimensions() {
 function resetGame() {
   window.eliminationOrder = [];
   window.gamePaused = false;
+  window.ballBuffer = []; // Descartar snapshots de la partida anterior
   if (typeof ball !== 'undefined') {
     ball.targetX = undefined;
     ball.targetY = undefined;
@@ -336,6 +337,14 @@ function updateBall() {
 
   const isOnlineGuest = window.network && window.network.roomId && !window.network.isHost;
 
+  // 🌐 ONLINE INVITADO: la pelota reproduce la trayectoria del host con 120ms
+  // de retraso (igual que las paletas remotas), interpolando entre snapshots.
+  // El invitado no simula física propia: así nunca diverge del host.
+  if (isOnlineGuest) {
+    updateGuestBall();
+    return;
+  }
+
   // Movimiento
   ball.x += ball.dx;
   ball.y += ball.dy;
@@ -350,75 +359,9 @@ function updateBall() {
   // 2. Rebote en Paletas (Paddles)
   paddles.forEach(p => {
     if (p.lives > 0 && checkRectCollision(ball, p)) {
-      // Determinar punto de impacto relativo (-1 a 1)
-      let collidePoint = 0;
-      let isSmash = false; // Flag para detectar si hubo "empuje"
-
-      // Paletas horizontales (Top/Bottom)
-      if (p.w > p.h) {
-        const center = p.x + p.w / 2;
-        collidePoint = (ball.x - center) / (p.w / 2);
-
-        let directionY = (ball.dy > 0) ? -1 : 1;
-
-        // DETECCIÓN DE DASH / SMASH
-        // Si la paleta se mueve muy rápido (usamos un umbral)
-        // Y si el movimiento lateral coincide con la dirección horizontal de la pelota (opcional)
-        // O simplemente si se está moviendo al momento del impacto, le da un boost.
-        // Simplificación: Si |p.dx| > 0, es un golpe con movimiento.
-        if (Math.abs(p.dx) > 0) {
-          isSmash = true;
-        }
-
-        const angleRad = collidePoint * (Math.PI / 3);
-
-        // Velocidad base del rebote
-        let speed = Math.sqrt(ball.dx * ball.dx + ball.dy * ball.dy);
-
-        // APLICAR BOOST SI ES SMASH
-        if (isSmash) {
-          speed *= 1.5; // 50% más rápido!
-          ball.color = p.color; // La pelota toma el color del jugador
-        } else {
-          p2 = p;
-          break;
-        }
-      }
-      if (p1 && p2) {
-        // Detectar si la pelota rebotó en el host entre estos dos paquetes
-        const bounced =
-          (p1.vx !== 0 && p2.vx !== 0 && Math.sign(p1.vx) !== Math.sign(p2.vx)) ||
-          (p1.vy !== 0 && p2.vy !== 0 && Math.sign(p1.vy) !== Math.sign(p2.vy));
-
-        if (bounced) {
-          // Si rebotó, evitamos interpolación lineal (que atravesaría la paleta/pared)
-          // y saltamos directo al último estado conocido para dibujar el rebote limpio
-          ball.x = p2.x;
-          ball.y = p2.y;
-          ball.dx = p2.vx;
-          ball.dy = p2.vy;
-        } else {
-          speed *= 1.05;
-          ball.color = 'white';
-        }
-
-        const maxSpeed = canvas.width * 0.04;
-        speed = Math.min(speed, maxSpeed);
-
-        ball.dx = directionX * speed * Math.cos(angleRad);
-        ball.dy = speed * Math.sin(angleRad);
-
-        // Ajuste anti-stick
-        if (directionX === 1) ball.x = p.x + p.w + ball.r + 1;
-        else ball.x = p.x - ball.r - 1;
-      }
+      resolvePaddleCollision(ball, p);
     }
   });
-
-  // 🌐 ONLINE: el invitado predice los rebotes localmente (misma física que el host)
-  // para que la pelota no atraviese paletas/paredes en su pantalla. No decide goles
-  // ni vidas: eso lo maneja el host en exclusiva y llega vía 'life_update'.
-  if (isOnlineGuest) return;
 
   checkGoal();
 
@@ -434,6 +377,63 @@ function updateBall() {
       );
       ball.lastSent = now;
     }
+  }
+}
+
+// 🌐 Interpolación de snapshots para el invitado.
+// Busca los dos estados del host que rodean el instante a renderizar (ahora - 120ms)
+// e interpola entre ellos. Si entre ambos estados hubo un rebote (la velocidad
+// cambió de signo), interpolar en línea recta atravesaría la paleta/pared, así
+// que en ese caso salta directo al estado posterior al rebote.
+function updateGuestBall() {
+  const buf = window.ballBuffer;
+  if (!buf || buf.length === 0) return;
+
+  const renderTime = Date.now() - 120; // mismo delay que las paletas remotas
+
+  let s1 = null, s2 = null;
+  for (let i = 0; i < buf.length; i++) {
+    if (buf[i].time <= renderTime) {
+      s1 = buf[i];
+    } else {
+      s2 = buf[i];
+      break;
+    }
+  }
+
+  if (s1 && s2) {
+    const bounced =
+      (s1.vx !== 0 && s2.vx !== 0 && Math.sign(s1.vx) !== Math.sign(s2.vx)) ||
+      (s1.vy !== 0 && s2.vy !== 0 && Math.sign(s1.vy) !== Math.sign(s2.vy));
+
+    if (bounced) {
+      ball.x = s2.x;
+      ball.y = s2.y;
+    } else {
+      const t = (renderTime - s1.time) / (s2.time - s1.time);
+      ball.x = s1.x + (s2.x - s1.x) * t;
+      ball.y = s1.y + (s2.y - s1.y) * t;
+    }
+    ball.dx = s2.vx;
+    ball.dy = s2.vy;
+    ball.color = s2.color || 'white';
+    ball.activeTrail = s2.activeTrail || 'none';
+  } else if (s1) {
+    // No llegó un estado más nuevo (jitter/pérdida): extrapolar con la última
+    // velocidad conocida, con tope de ~130ms para no atravesar nada si se corta la red
+    const frames = Math.min((renderTime - s1.time) / 16.67, 8);
+    ball.x = s1.x + s1.vx * frames;
+    ball.y = s1.y + s1.vy * frames;
+    ball.dx = s1.vx;
+    ball.dy = s1.vy;
+    ball.color = s1.color || 'white';
+    ball.activeTrail = s1.activeTrail || 'none';
+  } else {
+    // Recién conectado: todos los estados son más nuevos que renderTime
+    ball.x = buf[0].x;
+    ball.y = buf[0].y;
+    ball.dx = buf[0].vx;
+    ball.dy = buf[0].vy;
   }
 }
 
