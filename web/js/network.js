@@ -48,9 +48,16 @@ class NetworkManager {
     connect() {
         if (this.socket) return; // Evitar múltiples conexiones concurrentes
 
-        // Detección inteligente del servidor a conectar
-        const isLocalWeb = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') && !window.Capacitor;
-        const serverUrl = isLocalWeb ? 'http://localhost:3000' : PRODUCTION_SERVER_URL;
+        // Detección inteligente del servidor a conectar:
+        // - localhost (dev en la misma máquina) → servidor local
+        // - IP privada (192.168.x, 10.x, 172.16-31.x) → MODO LAN: el server que sirvió
+        //   la página (node server/index.js en tu red), sin pasar por internet/Render
+        // - cualquier otro caso (Firebase Hosting, APK) → servidor de producción
+        const host = window.location.hostname;
+        const isLocalWeb = (host === 'localhost' || host === '127.0.0.1') && !window.Capacitor;
+        const isLanWeb = /^(192\.168\.|10\.|172\.(1[6-9]|2\d|3[01])\.)/.test(host);
+        const serverUrl = isLocalWeb ? 'http://localhost:3000'
+            : (isLanWeb ? window.location.origin : PRODUCTION_SERVER_URL);
 
         console.log(`Conectando al servidor: ${serverUrl}`);
         this.socket = io(serverUrl, {
