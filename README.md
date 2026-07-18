@@ -1,8 +1,33 @@
-# Pong (local / APK / servidor)
+# Pong Bash - MVP (Versión 1.0) 🚀
 
-Resumen corto
-- Proyecto Pong: cliente web/Android (Capacitor) y servidor Node.js (WebSocket) para juego en red.
-- Este README explica cómo preparar el repositorio, ejecutar localmente y desplegar el servidor en una Raspberry Pi.
+Este repositorio contiene la **primera versión oficial estable (MVP 1.0)** de Pong Bash, un juego de Ping Pong multijugador online premium con soporte para 2, 3 y 4 jugadores, sistema de clasificación y una interfaz visual inmersiva.
+
+## 🌟 Características de la Versión 1.0 (Primer MVP)
+
+### 👥 Modos de Juego Adaptativos
+*   **Modo 2 Jugadores (Clásica):** Paletas enfrentadas (arriba/abajo), paredes laterales cerradas. Cámara rotada a 0° para el invitado para una jugabilidad fluida y equitativa.
+*   **Modo 3 Jugadores (Clásica):** Cierre del arco y paleta inactiva para balancear la partida.
+*   **Modo 4 Jugadores (Ranked):** El mapa de juego completo para una batalla de supervivencia competitiva.
+
+### 🏆 Modos Clásica vs Ranked (Protección de ELO)
+*   **Clásica (2 o 3 Jugadores):** Partidas casuales o de práctica. No alteran el Win Rate ni suman/restan puntos de ELO/Exp.
+*   **Ranked (4 Jugadores):** Partidas competitivas con ranking global y variación de puntos de experiencia (+15 ganador, +10 segundo, -5 tercero/cuarto).
+
+### 🎨 Experiencia Visual Premium y Animaciones
+*   **Entrada/Salida de Cancha:** Transiciones fluidas en el canvas y la barra de vidas (`opacity` y `scale(0.95) -> scale(1)` de `0.6s`) al iniciar y terminar la partida.
+*   **Barra de Vidas Neón:** Rediseño de corazones a cápsulas de cristal esmerilado con indicadores LED de vidas independientes de color neón.
+*   **Animación de Daño:** Al recibir un gol, la barra LED correspondiente parpadea con un flash de alerta roja y se apaga de forma animada.
+*   **Efecto de Gol:** Destello translúcido en el arco donde se anotó el gol.
+
+### 🛡️ Seguridad e Interfaz
+*   **Sanitización de Nombres:** Filtro en tiempo real que solo admite letras, números y espacios, con límite estricto de **12 caracteres**. Nombres largos se truncan en CSS (`text-overflow: ellipsis`) para evitar rupturas de layout.
+*   **Invitación Inteligente:** Alerta amigable "Invitá a un amigo" con botón de compartir (API nativa de compartición o portapapeles) si el host intenta iniciar sin el mínimo de 2 jugadores.
+*   **Optimización del Servidor:** Rate limiting de creación de salas (máximo 3 salas por minuto por IP) y precalentamiento de sockets.
+
+---
+
+## 🛠️ Guía Original de Instalación y Despliegue
+
 
 Requisitos
 - Git
