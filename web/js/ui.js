@@ -78,11 +78,7 @@ function drawLives() {
   paddles.forEach((p, index) => {
     const pId = index + 1;
     if (activeIds.includes(pId)) {
-      let nameIndex = index;
-      if (window.playerCount === 2 && index === 2) {
-        nameIndex = 1; // El segundo jugador conectado es player 2
-      }
-      const playerName = playerNames[nameIndex] || `Jugador ${index + 1}`;
+      const playerName = playerNames[index] || `Jugador ${index + 1}`;
       
       // Obtener vidas anteriores para comparar y animar pérdida
       const prevL = window.previousLives[index] !== undefined ? window.previousLives[index] : p.lives;

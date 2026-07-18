@@ -417,8 +417,8 @@ class NetworkManager {
 
         this.socket.on('game_started', (data) => {
             // Configurar modo de juego según cantidad de jugadores
-            const playerCount = (data && data.playerCount) || 4;
-            const playerIds = (data && data.playerIds) || [1, 2, 3, 4];
+            const playerCount = (data && data.playerCount) || Object.keys(this.playerNames).length || 4;
+            const playerIds = (data && data.playerIds) || [1, 2, 3, 4].slice(0, playerCount);
             window.playerCount = playerCount;
             window.activePlayerIds = playerIds;
 
@@ -426,23 +426,15 @@ class NetworkManager {
             const defaultNames = ['Rojo', 'Azul', 'Amarillo', 'Verde'];
             if (window.updatePlayerNames) {
                 const names = defaultNames.map((def, i) => {
-                    let pId = i + 1;
-                    if (window.playerCount === 2 && pId === 3) {
-                        pId = 2; // En modo 2 jugadores, mapear el nombre del jugador 2 (guest) al slot 3 (Amarillo)
-                    }
+                    const pId = i + 1;
                     return this.playerNames[pId] || def;
                 });
                 window.updatePlayerNames(names);
             }
 
-            // Sincronizar skins y trails de cada jugador a sus paletas correspondientes
             if (window.paddles) {
                 window.paddles.forEach((p, idx) => {
-                    let pId = idx + 1;
-                    // En modo 2 jugadores, mapear el jugador 3 (bottom) al skin del jugador 2 (cliente)
-                    if (window.playerCount === 2 && pId === 3) {
-                        pId = 2;
-                    }
+                    const pId = idx + 1;
                     p.skinId = this.playerSkins[pId] || 'default';
                     p.trailId = this.playerTrails[pId] || 'none';
                 });
@@ -472,17 +464,14 @@ class NetworkManager {
             // rotate(-90deg) = CCW visual → lado IZQUIERDO queda abajo (Green)
             const rotacionPorJugador = { 1: 180, 2: 90, 3: 0, 4: -90 };
             let actualPlayerId = this.playerId;
-            // En modo 2 jugadores, mapear el cliente (player 2) al ID de paleta 3 (bottom) para que rote a 0° (su paleta queda abajo)
-            if (window.playerCount === 2 && actualPlayerId === 2) {
-                actualPlayerId = 3;
-            }
             const grados = actualPlayerId ? (rotacionPorJugador[actualPlayerId] || 0) : 0;
             window.canvasRotation = grados;
             if (window.canvas) {
                 window.canvas.style.transition = 'none';
                 window.canvas.style.transform = `scale(0.5) rotate(${grados}deg)`;
+                window.canvas.style.opacity = '1';
                 window.canvas.offsetHeight; // Reflow
-                window.canvas.style.transition = 'transform 1.4s cubic-bezier(0.34, 1.56, 0.64, 1)';
+                window.canvas.style.transition = 'transform 1.4s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.3s ease';
                 window.canvas.style.transform = `scale(1) rotate(${grados + 360}deg)`;
             }
             // Rojo (180°) y Azul (90°) necesitan teclas invertidas:
@@ -566,7 +555,8 @@ class NetworkManager {
                             }
                             setTimeout(() => {
                                 const ganadorIndex = window.paddles.indexOf(vivos[0]);
-                                const nombreGanador = (window.playerNames && window.playerNames[ganadorIndex]) || ["Rojo", "Azul", "Amarillo", "Verde"][ganadorIndex];
+                                const fallbackNames = ["Rojo", "Azul", "Amarillo", "Verde"];
+                                const nombreGanador = (window.playerNames && window.playerNames[ganadorIndex]) || fallbackNames[ganadorIndex];
                                 document.getElementById('winnerName').textContent = `🎉 ¡Ganador: ${nombreGanador}! 🎉`;
                                 document.getElementById('startScreen').style.display = 'flex';
                                 document.getElementById('startContent').style.display = 'none';
@@ -625,7 +615,8 @@ class NetworkManager {
             this.playAgainStates = null;
 
             if (window.paddles && window.paddles[data.winnerIndex]) {
-                const winnerName = (window.playerNames && window.playerNames[data.winnerIndex]) || ["Rojo", "Azul", "Amarillo", "Verde"][data.winnerIndex];
+                const fallbackNames = ["Rojo", "Azul", "Amarillo", "Verde"];
+                const winnerName = (window.playerNames && window.playerNames[data.winnerIndex]) || fallbackNames[data.winnerIndex];
                 document.getElementById('winnerName').textContent = `🎉 ¡Ganador: ${winnerName}! 🎉`;
                 document.getElementById('startScreen').style.display = 'flex';
                 document.getElementById('startContent').style.display = 'none';

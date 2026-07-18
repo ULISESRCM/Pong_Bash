@@ -114,11 +114,18 @@ io.on('connection', (socket) => {
             }
 
             // Determinar el próximo ID disponible
+            // En modo 2 jugadores (solo el host en la sala), asignar ID 3 (paleta inferior)
+            // para que el invitado juegue enfrentado al host (paleta superior) sin remapeos
             let playerId = null;
-            for (let i = 1; i <= 4; i++) {
-                if (!room.players[i]) {
-                    playerId = i;
-                    break;
+            const currentCount = Object.keys(room.players).length;
+            if (currentCount === 1 && !room.players[3]) {
+                playerId = 3; // Segundo jugador → paleta inferior directamente
+            } else {
+                for (let i = 2; i <= 4; i++) {
+                    if (!room.players[i]) {
+                        playerId = i;
+                        break;
+                    }
                 }
             }
 

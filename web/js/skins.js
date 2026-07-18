@@ -253,7 +253,10 @@ const SkinManager = {
       this.updateSelectionUI('paddle');
 
       // Actualizar paleta del jugador local y caché de red
-      const myIndex = (window.network && window.network.roomId) ? (window.network.playerId - 1) : null;
+      let myIndex = null;
+      if (window.network && window.network.roomId) {
+        myIndex = window.network.playerId - 1;
+      }
       if (myIndex !== null) {
         if (window.paddles && window.paddles[myIndex]) {
           window.paddles[myIndex].skinId = skinId;
@@ -288,7 +291,10 @@ const SkinManager = {
       });
 
       // Actualizar trail del jugador local y caché de red
-      const myIndex = (window.network && window.network.roomId) ? (window.network.playerId - 1) : null;
+      let myIndex = null;
+      if (window.network && window.network.roomId) {
+        myIndex = window.network.playerId - 1;
+      }
       if (myIndex !== null) {
         if (window.paddles && window.paddles[myIndex]) {
           window.paddles[myIndex].trailId = trailId;
