@@ -12,6 +12,18 @@ class NetworkManager {
         this.playerNames = {}; // {playerId: nombre}
         this.playerSkins = {}; // {playerId: skinId}
         this.playerTrails = {}; // {playerId: trailId}
+
+        // Detectar cambio de pestaña/minimizada (Visibility API)
+        document.addEventListener('visibilitychange', () => {
+            if (this.socket && this.roomId && this.playerId && window.loopRunning && !window.gameOver) {
+                const visible = document.visibilityState === 'visible';
+                this.socket.emit('player_visibility', {
+                    roomId: this.roomId,
+                    playerId: this.playerId,
+                    visible: visible
+                });
+            }
+        });
     }
 
     connect() {
@@ -176,6 +188,193 @@ class NetworkManager {
             }
         });
 
+        // Evento: juego pausado por inactividad de un jugador
+        this.socket.on('game_paused', (data) => {
+            window.gamePaused = true;
+
+            if (window.Swal) {
+                Swal.close(); // Cerrar votaciones abiertas si las hay
+                Swal.fire({
+                    title: '⏸️ Partida Pausada',
+                    html: `<p style="margin-bottom:12px;">El jugador <b>${data.playerName}</b> está inactivo o cambió de pestaña.</p>
+                           <p style="color:#aaa; font-size:14px;">Esperando su regreso... <b id="pauseCountdown" style="color:#e74c3c; font-size:18px;">${data.timeLimit}s</b></p>`,
+                    icon: 'warning',
+                    background: '#121212',
+                    color: '#fff',
+                    showConfirmButton: false,
+                    allowOutsideClick: false,
+                    allowEscapeKey: false,
+                    allowEnterKey: false,
+                    didOpen: () => {
+                        let currentSecs = data.timeLimit;
+                        window.pauseInterval = setInterval(() => {
+                            currentSecs--;
+                            const textEl = document.getElementById('pauseCountdown');
+                            if (textEl) {
+                                textEl.textContent = `${currentSecs}s`;
+                            }
+                            if (currentSecs <= 0) {
+                                clearInterval(window.pauseInterval);
+                            }
+                        }, 1000);
+                    },
+                    willClose: () => {
+                        if (window.pauseInterval) clearInterval(window.pauseInterval);
+                    }
+                });
+            } else {
+                window.showAlert('Partida Pausada', `El jugador ${data.playerName} está inactivo.`, 'warning');
+            }
+        });
+
+        // Evento: juego reanudado
+        this.socket.on('game_resumed', (data) => {
+            window.gamePaused = false;
+            if (window.pauseInterval) clearInterval(window.pauseInterval);
+
+            if (window.Swal) {
+                Swal.fire({
+                    title: '¡El jugador volvió!',
+                    text: `${data.playerName} regresó al juego. Reanudando...`,
+                    icon: 'success',
+                    timer: 2000,
+                    showConfirmButton: false,
+                    background: '#121212',
+                    color: '#fff',
+                }).then(() => {
+                    // Volver a iniciar el conteo de 3 segundos para que los jugadores se acomoden
+                    if (window.startCountdown) window.startCountdown();
+                });
+            } else {
+                if (window.startCountdown) window.startCountdown();
+            }
+        });
+
+        // Evento: votación de expulsión iniciada
+        this.socket.on('vote_kick_started', (data) => {
+            if (window.pauseInterval) clearInterval(window.pauseInterval);
+            
+            // Si yo soy el infractor, solo veo pantalla de espera de votación
+            if (parseInt(data.targetPlayerId) === this.playerId) {
+                if (window.Swal) {
+                    Swal.fire({
+                        title: '⚠️ Votación de expulsión en curso',
+                        text: 'Entraste en segundo plano repetidamente. Los demás jugadores están votando si expulsarte.',
+                        icon: 'warning',
+                        background: '#121212',
+                        color: '#fff',
+                        showConfirmButton: false,
+                        allowOutsideClick: false,
+                        allowEscapeKey: false
+                    });
+                }
+                return;
+            }
+
+            // Para los demás jugadores, mostrar opciones de votación
+            if (window.Swal) {
+                Swal.fire({
+                    title: '⚠️ ¿Expulsar jugador?',
+                    html: `<p><b>${data.targetPlayerName}</b> se ausentó repetidamente.</p>
+                           <p>¿Querés expulsarlo de la partida? Si es expulsado perderá todas las vidas.</p>
+                           <p style="font-size: 13px; color: #888;">Tiempo para votar: <strong id="voteCountdown">5s</strong></p>`,
+                    icon: 'question',
+                    background: '#121212',
+                    color: '#fff',
+                    showCancelButton: true,
+                    confirmButtonText: '🚫 Echar (Kick)',
+                    cancelButtonText: '⏳ Esperar (Wait)',
+                    confirmButtonColor: '#e74c3c',
+                    cancelButtonColor: '#27ae60',
+                    allowOutsideClick: false,
+                    allowEscapeKey: false,
+                    didOpen: () => {
+                        let currentSecs = 5;
+                        window.voteInterval = setInterval(() => {
+                            currentSecs--;
+                            const textEl = document.getElementById('voteCountdown');
+                            if (textEl) {
+                                textEl.textContent = `${currentSecs}s`;
+                            }
+                            if (currentSecs <= 0) {
+                                clearInterval(window.voteInterval);
+                                Swal.clickCancel(); // Por defecto votar esperar
+                            }
+                        }, 1000);
+                    },
+                    willClose: () => {
+                        if (window.voteInterval) clearInterval(window.voteInterval);
+                    }
+                }).then((result) => {
+                    const vote = result.isConfirmed ? 'kick' : 'wait';
+                    this.socket.emit('vote_kick_cast', {
+                        roomId: this.roomId,
+                        voterPlayerId: this.playerId,
+                        targetPlayerId: data.targetPlayerId,
+                        vote: vote
+                    });
+                });
+            }
+        });
+
+        // Evento: jugador expulsado
+        this.socket.on('player_kicked', (data) => {
+            window.gamePaused = false;
+            if (window.pauseInterval) clearInterval(window.pauseInterval);
+            if (window.voteInterval) clearInterval(window.voteInterval);
+            
+            const pIndex = parseInt(data.playerId) - 1;
+
+            if (window.paddles && window.paddles[pIndex]) {
+                const p = window.paddles[pIndex];
+                p.lives = 0;
+                if (window.closeWall) {
+                    window.closeWall(p.side);
+                }
+                if (!window.eliminationOrder) window.eliminationOrder = [];
+                if (!window.eliminationOrder.includes(pIndex)) {
+                    window.eliminationOrder.push(pIndex);
+                }
+                if (window.drawLives) window.drawLives();
+            }
+
+            if (parseInt(data.playerId) === this.playerId) {
+                // Fui expulsado. Ir al lobby/main screen.
+                if (window.Swal) {
+                    Swal.fire({
+                        title: '🚫 Fuiste expulsado',
+                        text: 'Has sido expulsado de la partida por inactividad repetida.',
+                        icon: 'error',
+                        background: '#121212',
+                        color: '#fff',
+                        confirmButtonText: 'Aceptar'
+                    }).then(() => {
+                        if (window.leaveRoom) window.leaveRoom();
+                    });
+                } else {
+                    alert('Fuiste expulsado por inactividad.');
+                    if (window.leaveRoom) window.leaveRoom();
+                }
+            } else {
+                // Alguien más fue expulsado. Mostrar mensaje y arrancar cuenta regresiva de 3s
+                if (window.Swal) {
+                    Swal.fire({
+                        title: '🚫 Jugador expulsado',
+                        text: `${data.playerName} fue expulsado por inactividad. La partida continuará.`,
+                        icon: 'info',
+                        timer: 3000,
+                        showConfirmButton: false,
+                        background: '#121212',
+                        color: '#fff',
+                    }).then(() => {
+                        if (window.startCountdown) window.startCountdown();
+                    });
+                } else {
+                    if (window.startCountdown) window.startCountdown();
+                }
+            }
+        });
+
         this.socket.on('game_started', (data) => {
             // Configurar modo de juego según cantidad de jugadores
             const playerCount = (data && data.playerCount) || 4;
@@ -234,8 +433,11 @@ class NetworkManager {
             const grados = actualPlayerId ? (rotacionPorJugador[actualPlayerId] || 0) : 0;
             window.canvasRotation = grados;
             if (window.canvas) {
-                window.canvas.style.transition = 'transform 0.4s ease';
-                window.canvas.style.transform = grados !== 0 ? `rotate(${grados}deg)` : '';
+                window.canvas.style.transition = 'none';
+                window.canvas.style.transform = `scale(0.5) rotate(${grados}deg)`;
+                window.canvas.offsetHeight; // Reflow
+                window.canvas.style.transition = 'transform 1.4s cubic-bezier(0.34, 1.56, 0.64, 1)';
+                window.canvas.style.transform = `scale(1) rotate(${grados + 360}deg)`;
             }
             // Rojo (180°) y Azul (90°) necesitan teclas invertidas:
             // En esas rotaciones, ArrowLeft visual = aumentar X/Y en canvas
@@ -585,6 +787,12 @@ class NetworkManager {
         this.roomId = null;
         this.isHost = false;
         this.connected = false;
+
+        // Resetear pausas
+        window.gamePaused = false;
+        if (window.pauseInterval) clearInterval(window.pauseInterval);
+        if (window.voteInterval) clearInterval(window.voteInterval);
+        if (window.Swal) Swal.close();
     }
 
     updatePlayAgainList(readyPlayerId = null, isReady = false) {

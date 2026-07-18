@@ -85,7 +85,7 @@ io.on('connection', (socket) => {
 
         rooms[roomId] = {
             players: {
-                1: { id: socket.id, ready: false, name: name, skinId: 'default', trailId: 'none' }
+                1: { id: socket.id, ready: false, name: name, skinId: 'default', trailId: 'none', pauseCount: 0, isInactive: false }
             },
             status: 'waiting'
         };
@@ -123,7 +123,7 @@ io.on('connection', (socket) => {
             }
 
             if (playerId) {
-                room.players[playerId] = { id: socket.id, ready: false, name: name, skinId: 'default', trailId: 'none' };
+                room.players[playerId] = { id: socket.id, ready: false, name: name, skinId: 'default', trailId: 'none', pauseCount: 0, isInactive: false };
                 socket.join(roomId);
 
                 // Notificar al nuevo jugador con la lista completa (incluye nombres)
@@ -247,12 +247,109 @@ io.on('connection', (socket) => {
     socket.on('game_finished', (data) => {
         const { roomId, winnerIndex } = data;
         if (roomId && rooms[roomId]) {
-            // Resetear listos para la votación de volver a jugar
+            // Resetear listos para la votación de volver a jugar y pausadores
             for (const pId in rooms[roomId].players) {
                 rooms[roomId].players[pId].ready = false;
+                rooms[roomId].players[pId].pauseCount = 0;
+                rooms[roomId].players[pId].isInactive = false;
+                if (rooms[roomId].players[pId].inactiveTimer) {
+                    clearTimeout(rooms[roomId].players[pId].inactiveTimer);
+                    rooms[roomId].players[pId].inactiveTimer = null;
+                }
             }
+            rooms[roomId].kickVotes = null;
             io.to(roomId).emit('game_finished', { winnerIndex });
             rooms[roomId].status = 'waiting'; // Reset status
+        }
+    });
+
+    // Cambiar visibilidad (Visibility API)
+    socket.on('player_visibility', (data) => {
+        const { roomId, playerId, visible } = data;
+        if (!roomId || !playerId) return;
+        const room = rooms[roomId];
+        if (!room || !room.players[playerId] || room.status !== 'playing') return;
+
+        const player = room.players[playerId];
+
+        if (!visible) {
+            player.isInactive = true;
+            player.pauseCount = (player.pauseCount || 0) + 1;
+
+            if (player.pauseCount === 1) {
+                console.log(`Room ${roomId}: Player ${playerId} (${player.name}) went background (1st pause). Starting 10s timer.`);
+                io.to(roomId).emit('game_paused', { 
+                    playerId, 
+                    playerName: player.name, 
+                    timeLimit: 10 
+                });
+
+                if (player.inactiveTimer) clearTimeout(player.inactiveTimer);
+
+                player.inactiveTimer = setTimeout(() => {
+                    if (player.isInactive && room.status === 'playing') {
+                        console.log(`Room ${roomId}: Player ${playerId} (${player.name}) timed out after 10s. Eliminating.`);
+                        io.to(roomId).emit('player_kicked', { 
+                            playerId, 
+                            playerName: player.name,
+                            reason: 'timeout'
+                        });
+                    }
+                }, 10000);
+            } else {
+                console.log(`Room ${roomId}: Player ${playerId} (${player.name}) went background again (Pause count: ${player.pauseCount}). Starting kick vote.`);
+                
+                room.kickVotes = {
+                    targetPlayerId: playerId,
+                    votes: {},
+                    endTime: Date.now() + 5000
+                };
+
+                io.to(roomId).emit('vote_kick_started', {
+                    targetPlayerId: playerId,
+                    targetPlayerName: player.name,
+                    timeLimit: 5
+                });
+
+                if (player.inactiveTimer) clearTimeout(player.inactiveTimer);
+                player.inactiveTimer = setTimeout(() => {
+                    if (room.kickVotes && room.kickVotes.targetPlayerId === playerId && room.status === 'playing') {
+                        processKickVotes(roomId);
+                    }
+                }, 5000);
+            }
+        } else {
+            player.isInactive = false;
+            console.log(`Room ${roomId}: Player ${playerId} (${player.name}) returned.`);
+            
+            if (player.pauseCount === 1) {
+                if (player.inactiveTimer) {
+                    clearTimeout(player.inactiveTimer);
+                    player.inactiveTimer = null;
+                }
+                io.to(roomId).emit('game_resumed', { 
+                    playerId, 
+                    playerName: player.name 
+                });
+            }
+        }
+    });
+
+    // Registrar voto de expulsión
+    socket.on('vote_kick_cast', (data) => {
+        const { roomId, voterPlayerId, targetPlayerId, vote } = data;
+        const room = rooms[roomId];
+        if (!room || !room.kickVotes || room.kickVotes.targetPlayerId !== targetPlayerId) return;
+
+        room.kickVotes.votes[voterPlayerId] = vote;
+        console.log(`Room ${roomId}: Player ${voterPlayerId} voted to ${vote} player ${targetPlayerId}`);
+
+        const activeRemainingIds = Object.keys(room.players).map(Number).filter(id => id !== targetPlayerId);
+        const votesCast = Object.keys(room.kickVotes.votes).map(Number);
+        
+        const allVoted = activeRemainingIds.every(id => votesCast.includes(id));
+        if (allVoted) {
+            processKickVotes(roomId);
         }
     });
 
@@ -265,6 +362,9 @@ io.on('connection', (socket) => {
             for (const pId in room.players) {
                 if (room.players[pId].id === socket.id) {
                     disconnectedPlayerId = pId;
+                    if (room.players[pId].inactiveTimer) {
+                        clearTimeout(room.players[pId].inactiveTimer);
+                    }
                     delete room.players[pId];
                     break;
                 }
@@ -310,6 +410,61 @@ io.on('connection', (socket) => {
     });
 });
 
+
+function processKickVotes(roomId) {
+    const room = rooms[roomId];
+    if (!room || !room.kickVotes) return;
+
+    const targetPlayerId = room.kickVotes.targetPlayerId;
+    const player = room.players[targetPlayerId];
+    if (!player) {
+        room.kickVotes = null;
+        return;
+    }
+
+    if (player.inactiveTimer) {
+        clearTimeout(player.inactiveTimer);
+        player.inactiveTimer = null;
+    }
+
+    const votes = Object.values(room.kickVotes.votes);
+    const kickCount = votes.filter(v => v === 'kick').length;
+    const waitCount = votes.filter(v => v === 'wait').length;
+
+    console.log(`Room ${roomId}: Kick vote result for ${player.name}: Kick: ${kickCount}, Wait: ${waitCount}`);
+
+    const totalVoters = Object.keys(room.players).length - 1;
+    const majority = Math.ceil(totalVoters / 2);
+
+    if (kickCount >= majority || (totalVoters === 1 && kickCount === 1) || (kickCount > waitCount)) {
+        console.log(`Room ${roomId}: Player ${targetPlayerId} (${player.name}) kicked by vote.`);
+        io.to(roomId).emit('player_kicked', { 
+            playerId: targetPlayerId, 
+            playerName: player.name,
+            reason: 'vote'
+        });
+    } else {
+        console.log(`Room ${roomId}: Player ${targetPlayerId} (${player.name}) spared by vote.`);
+        io.to(roomId).emit('game_paused', { 
+            playerId: targetPlayerId, 
+            playerName: player.name, 
+            timeLimit: 10 
+        });
+
+        player.inactiveTimer = setTimeout(() => {
+            if (player.isInactive && room.status === 'playing') {
+                console.log(`Room ${roomId}: Player ${targetPlayerId} (${player.name}) timed out after vote grace period.`);
+                io.to(roomId).emit('player_kicked', { 
+                    playerId: targetPlayerId, 
+                    playerName: player.name,
+                    reason: 'timeout'
+                });
+            }
+        }, 10000);
+    }
+
+    room.kickVotes = null;
+}
 
 const PORT = 3000;
 server.listen(PORT, () => {

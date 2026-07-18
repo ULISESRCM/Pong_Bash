@@ -87,6 +87,7 @@ function calculateDimensions() {
 
 function resetGame() {
   window.eliminationOrder = [];
+  window.gamePaused = false;
   resizeCanvas();
   if (canvas) {
     canvas.style.display = 'block';
@@ -254,7 +255,7 @@ function updateBall() {
     window.SkinManager.updateTrail(ball);
   }
 
-  if (gameOver) return;
+  if (gameOver || window.gamePaused) return;
   
   // Pausa de 2 segundos tras gol con parpadeo
   if (window.ballRespawnTimerActive) {
