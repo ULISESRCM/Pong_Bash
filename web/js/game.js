@@ -346,7 +346,7 @@ function updateBall(dt = 1) {
       // El host transmite la posición quieta de la pelota para mantener la sincronización online
       if (window.network && window.network.roomId && window.network.isHost) {
         const now = Date.now();
-        if (!ball.lastSent || now - ball.lastSent > 16) {
+        if (!ball.lastSent || now - ball.lastSent > 33) {
           window.network.sendBallUpdate(
             ball.x / canvas.width, ball.y / canvas.height,
             0, 0
@@ -360,10 +360,10 @@ function updateBall(dt = 1) {
 
   if (window.countdownActive) return; // Evitar mover la pelota durante el conteo regesivo
 
-  // 🌐 ONLINE: Clientes usan un buffer de reproducción con retraso de 80ms para un movimiento 100% fluido y libre de saltos
+  // 🌐 ONLINE: Clientes usan un buffer de reproducción con retraso de 120ms para un movimiento 100% fluido y libre de saltos
   if (window.network && window.network.roomId && !window.network.isHost) {
     if (window.ballBuffer && window.ballBuffer.length > 0) {
-      const renderTime = Date.now() - 80; // 80ms de retraso para absorber jitter
+      const renderTime = Date.now() - 120; // 120ms de retraso para absorber jitter
       let p1 = null;
       let p2 = null;
       for (let i = 0; i < window.ballBuffer.length; i++) {
@@ -376,11 +376,25 @@ function updateBall(dt = 1) {
         }
       }
       if (p1 && p2) {
-        const t = (renderTime - p1.time) / (p2.time - p1.time);
-        ball.x = p1.x + (p2.x - p1.x) * t;
-        ball.y = p1.y + (p2.y - p1.y) * t;
-        ball.dx = p1.vx + (p2.vx - p1.vx) * t;
-        ball.dy = p1.vy + (p2.vy - p1.vy) * t;
+        // Detectar si la pelota rebotó en el host entre estos dos paquetes
+        const bounced =
+          (p1.vx !== 0 && p2.vx !== 0 && Math.sign(p1.vx) !== Math.sign(p2.vx)) ||
+          (p1.vy !== 0 && p2.vy !== 0 && Math.sign(p1.vy) !== Math.sign(p2.vy));
+
+        if (bounced) {
+          // Si rebotó, evitamos interpolación lineal (que atravesaría la paleta/pared)
+          // y saltamos directo al último estado conocido para dibujar el rebote limpio
+          ball.x = p2.x;
+          ball.y = p2.y;
+          ball.dx = p2.vx;
+          ball.dy = p2.vy;
+        } else {
+          const t = (renderTime - p1.time) / (p2.time - p1.time);
+          ball.x = p1.x + (p2.x - p1.x) * t;
+          ball.y = p1.y + (p2.y - p1.y) * t;
+          ball.dx = p1.vx + (p2.vx - p1.vx) * t;
+          ball.dy = p1.vy + (p2.vy - p1.vy) * t;
+        }
         ball.activeTrail = p1.activeTrail;
         ball.color = p1.color;
       } else if (p1) {
@@ -436,7 +450,7 @@ function updateBall(dt = 1) {
   // 🌐 ONLINE: Host envía posición de la pelota (throttled ~30fps, normalizada)
   if (window.network && window.network.roomId && window.network.isHost) {
     const now = Date.now();
-    if (!ball.lastSent || now - ball.lastSent > 16) {
+    if (!ball.lastSent || now - ball.lastSent > 33) {
       // Normalizar a 0-1 para compatibilidad entre distintos tamaños de canvas
       window.network.sendBallUpdate(
         ball.x / canvas.width, ball.y / canvas.height,
@@ -828,7 +842,7 @@ function movePaddles(dt = 1) {
       // --- REMOTE INTERPOLATION (Other Players) ---
       const playerId = index + 1;
       if (window.paddleBuffers && window.paddleBuffers[playerId] && window.paddleBuffers[playerId].length > 0) {
-        const renderTime = Date.now() - 80;
+        const renderTime = Date.now() - 120; // Sincronizado a 120ms de delay
         let p1 = null;
         let p2 = null;
         for (let i = 0; i < window.paddleBuffers[playerId].length; i++) {

@@ -34,7 +34,10 @@ class NetworkManager {
         const serverUrl = isLocalWeb ? 'http://localhost:3000' : PRODUCTION_SERVER_URL;
 
         console.log(`Conectando al servidor: ${serverUrl}`);
-        this.socket = io(serverUrl);
+        this.socket = io(serverUrl, {
+            transports: ['websocket'],
+            upgrade: false
+        });
 
         this.socket.on('connect', () => {
             console.log('Connected to server');
