@@ -360,18 +360,10 @@ function updateBall(dt = 1) {
 
   if (window.countdownActive) return; // Evitar mover la pelota durante el conteo regesivo
 
-  // 🌐 ONLINE: Clientes solo interpolan hacia la posición autoritativa del host
+  // 🌐 ONLINE: Clientes mueven la pelota localmente y corrigen la posición al recibir actualizaciones
   if (window.network && window.network.roomId && !window.network.isHost) {
-    if (ball.targetX !== undefined && ball.targetY !== undefined) {
-      const desvX = ball.targetX - ball.x;
-      const desvY = ball.targetY - ball.y;
-      
-      // Interpolación directa del 50% por frame — sin extrapolación local
-      // El host envía a 60fps, por lo que las correcciones son frecuentes y suaves
-      const lerpFactor = Math.min(1, 0.5 * dt);
-      ball.x += desvX * lerpFactor;
-      ball.y += desvY * lerpFactor;
-    }
+    ball.x += ball.dx * dt;
+    ball.y += ball.dy * dt;
     return;
   }
 
@@ -828,28 +820,28 @@ window.updateRemotePaddle = function (playerId, x, y) {
 
 window.updateRemoteBall = function (data) {
   if (typeof ball === 'undefined') return;
-  // Escalar velocidad normalizada al canvas local
+  // Guardar velocidad del servidor
   ball.dx = data.vx * canvas.width;
   ball.dy = data.vy * canvas.height;
-  
-  // Sincronizar estela y color
   ball.activeTrail = data.activeTrail || 'none';
   ball.color = data.color || 'white';
 
-  // Guardar posición del servidor para interpolar en el loop de físicas
   const serverX = data.x * canvas.width;
   const serverY = data.y * canvas.height;
-  ball.targetX = serverX;
-  ball.targetY = serverY;
 
+  // Corregir suavemente la posición local hacia la del servidor
   const desvX = serverX - ball.x;
   const desvY = serverY - ball.y;
   const desviacion = Math.sqrt(desvX * desvX + desvY * desvY);
 
-  // Si la pelota está lejos (ej: reinicio, gol o desincronización), corregimos al instante
-  if (desviacion > canvas.width * 0.08) {
+  if (desviacion > canvas.width * 0.15) {
+    // Si la desviación es muy grande (ej. reinicio o gol), hacemos snap directo
     ball.x = serverX;
     ball.y = serverY;
+  } else {
+    // Si no, corregimos un 30% de la desviación inmediatamente para absorber lag
+    ball.x += desvX * 0.3;
+    ball.y += desvY * 0.3;
   }
 };
 
