@@ -841,8 +841,18 @@ function movePaddles(dt = 1) {
     } else {
       // --- REMOTE INTERPOLATION (Other Players) ---
       const playerId = index + 1;
-      if (window.paddleBuffers && window.paddleBuffers[playerId] && window.paddleBuffers[playerId].length > 0) {
-        const renderTime = Date.now() - 120; // Sincronizado a 120ms de delay
+      const isHost = window.network && window.network.isHost;
+
+      if (isHost) {
+        // El host calcula colisiones físicas: usa la posición de red más fresca (sin delay de 120ms)
+        // Aplicamos una interpolación rápida de 2 frames para estabilidad visual sin penalización
+        if (p.targetX !== undefined && p.w > p.h) {
+          p.x += (p.targetX - p.x) * Math.min(1, 0.5 * dt);
+        } else if (p.targetY !== undefined && p.w < p.h) {
+          p.y += (p.targetY - p.y) * Math.min(1, 0.5 * dt);
+        }
+      } else if (window.paddleBuffers && window.paddleBuffers[playerId] && window.paddleBuffers[playerId].length > 0) {
+        const renderTime = Date.now() - 120; // Sincronizado a 120ms de delay para los invitados
         let p1 = null;
         let p2 = null;
         for (let i = 0; i < window.paddleBuffers[playerId].length; i++) {
@@ -885,9 +895,14 @@ window.updateRemotePaddle = function (playerId, x, y) {
 
   const p = window.paddles[playerId - 1];
   if (p) {
+    const targetX = x * canvas.width;
+    const targetY = y * canvas.height;
+    p.targetX = targetX;
+    p.targetY = targetY;
+
     window.paddleBuffers[playerId].push({
-      x: p.w > p.h ? x * canvas.width : p.x,
-      y: p.w < p.h ? y * canvas.height : p.y,
+      x: p.w > p.h ? targetX : p.x,
+      y: p.w < p.h ? targetY : p.y,
       time: Date.now()
     });
 
