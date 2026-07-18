@@ -360,6 +360,44 @@ function updateBall(dt = 1) {
 
   if (window.countdownActive) return; // Evitar mover la pelota durante el conteo regesivo
 
+  // 🌐 ONLINE: Clientes usan un buffer de reproducción con retraso de 80ms para un movimiento 100% fluido y libre de saltos
+  if (window.network && window.network.roomId && !window.network.isHost) {
+    if (window.ballBuffer && window.ballBuffer.length > 0) {
+      const renderTime = Date.now() - 80; // 80ms de retraso para absorber jitter
+      let p1 = null;
+      let p2 = null;
+      for (let i = 0; i < window.ballBuffer.length; i++) {
+        const p = window.ballBuffer[i];
+        if (p.time <= renderTime) {
+          p1 = p;
+        } else {
+          p2 = p;
+          break;
+        }
+      }
+      if (p1 && p2) {
+        const t = (renderTime - p1.time) / (p2.time - p1.time);
+        ball.x = p1.x + (p2.x - p1.x) * t;
+        ball.y = p1.y + (p2.y - p1.y) * t;
+        ball.dx = p1.vx + (p2.vx - p1.vx) * t;
+        ball.dy = p1.vy + (p2.vy - p1.vy) * t;
+        ball.activeTrail = p1.activeTrail;
+        ball.color = p1.color;
+      } else if (p1) {
+        // Extrapolación si no hay paquete futuro aún
+        const elapsed = renderTime - p1.time;
+        const frames = elapsed / 16.67;
+        ball.x = p1.x + p1.vx * frames;
+        ball.y = p1.y + p1.vy * frames;
+        ball.dx = p1.vx;
+        ball.dy = p1.vy;
+        ball.activeTrail = p1.activeTrail;
+        ball.color = p1.color;
+      }
+    }
+    return;
+  }
+
 
   // Movimiento con subdivisión para prevenir tunneling (Solución D)
   const ballSpeedMag = Math.sqrt((ball.dx * dt) * (ball.dx * dt) + (ball.dy * dt) * (ball.dy * dt));
@@ -788,13 +826,37 @@ function movePaddles(dt = 1) {
 
     } else {
       // --- REMOTE INTERPOLATION (Other Players) ---
-      // If target position exists, smooth move towards it
-      const lerpFactor = 0.3 * dt;
-      const finalLerp = Math.min(1, lerpFactor);
-      if (p.targetX !== undefined && p.w > p.h) {
-        p.x += (p.targetX - p.x) * finalLerp;
-      } else if (p.targetY !== undefined && p.w < p.h) {
-        p.y += (p.targetY - p.y) * finalLerp;
+      const playerId = index + 1;
+      if (window.paddleBuffers && window.paddleBuffers[playerId] && window.paddleBuffers[playerId].length > 0) {
+        const renderTime = Date.now() - 80;
+        let p1 = null;
+        let p2 = null;
+        for (let i = 0; i < window.paddleBuffers[playerId].length; i++) {
+          const pt = window.paddleBuffers[playerId][i];
+          if (pt.time <= renderTime) {
+            p1 = pt;
+          } else {
+            p2 = pt;
+            break;
+          }
+        }
+        if (p1 && p2) {
+          const t = (renderTime - p1.time) / (p2.time - p1.time);
+          if (p.w > p.h) p.x = p1.x + (p2.x - p1.x) * t;
+          else p.y = p1.y + (p2.y - p1.y) * t;
+        } else if (p1) {
+          if (p.w > p.h) p.x = p1.x;
+          else p.y = p1.y;
+        }
+      } else {
+        // Fallback si no hay buffer aún
+        const lerpFactor = 0.3 * dt;
+        const finalLerp = Math.min(1, lerpFactor);
+        if (p.targetX !== undefined && p.w > p.h) {
+          p.x += (p.targetX - p.x) * finalLerp;
+        } else if (p.targetY !== undefined && p.w < p.h) {
+          p.y += (p.targetY - p.y) * finalLerp;
+        }
       }
     }
   });
@@ -804,38 +866,39 @@ function movePaddles(dt = 1) {
 // 🌐 ONLINE HELPERS
 window.updateRemotePaddle = function (playerId, x, y) {
   if (!window.paddles) return;
+  if (!window.paddleBuffers) window.paddleBuffers = {};
+  if (!window.paddleBuffers[playerId]) window.paddleBuffers[playerId] = [];
+
   const p = window.paddles[playerId - 1];
   if (p) {
-    // Escalar coordenadas normalizadas al canvas local
-    if (p.w > p.h) p.targetX = x * canvas.width;
-    else p.targetY = y * canvas.height;
+    window.paddleBuffers[playerId].push({
+      x: p.w > p.h ? x * canvas.width : p.x,
+      y: p.w < p.h ? y * canvas.height : p.y,
+      time: Date.now()
+    });
+
+    if (window.paddleBuffers[playerId].length > 30) {
+      window.paddleBuffers[playerId].shift();
+    }
   }
 };
 
 window.updateRemoteBall = function (data) {
   if (typeof ball === 'undefined') return;
-  // Guardar velocidad del servidor
-  ball.dx = data.vx * canvas.width;
-  ball.dy = data.vy * canvas.height;
-  ball.activeTrail = data.activeTrail || 'none';
-  ball.color = data.color || 'white';
+  if (!window.ballBuffer) window.ballBuffer = [];
 
-  const serverX = data.x * canvas.width;
-  const serverY = data.y * canvas.height;
+  window.ballBuffer.push({
+    x: data.x * canvas.width,
+    y: data.y * canvas.height,
+    vx: data.vx * canvas.width,
+    vy: data.vy * canvas.height,
+    activeTrail: data.activeTrail || 'none',
+    color: data.color || 'white',
+    time: Date.now()
+  });
 
-  // Corregir suavemente la posición local hacia la del servidor
-  const desvX = serverX - ball.x;
-  const desvY = serverY - ball.y;
-  const desviacion = Math.sqrt(desvX * desvX + desvY * desvY);
-
-  if (desviacion > canvas.width * 0.15) {
-    // Si la desviación es muy grande (ej. reinicio o gol), hacemos snap directo
-    ball.x = serverX;
-    ball.y = serverY;
-  } else {
-    // Si no, corregimos un 30% de la desviación inmediatamente para absorber lag
-    ball.x += desvX * 0.3;
-    ball.y += desvY * 0.3;
+  if (window.ballBuffer.length > 30) {
+    window.ballBuffer.shift();
   }
 };
 
