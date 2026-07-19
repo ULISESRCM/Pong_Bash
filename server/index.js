@@ -9,7 +9,8 @@ const app = express();
 app.use(cors());
 
 // Ruta de verificación de estado (Health Check)
-app.get('/', (req, res) => {
+// En /health y no en / : la raíz debe servir el juego (web/index.html) para el modo LAN
+app.get('/health', (req, res) => {
     res.json({ status: "online", message: "Servidor de Pong Bash en funcionamiento." });
 });
 
